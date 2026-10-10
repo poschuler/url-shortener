@@ -30,6 +30,7 @@
     "deps:check": "depcruise src"
   },
   "dependencies": {
+    "fastify": "^5.12.5",
     "zod": "^4.6.5"
   },
   "devDependencies": {
