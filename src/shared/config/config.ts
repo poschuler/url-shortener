@@ -2,10 +2,23 @@ import { z } from "zod";
 
 type EnvSource = Record<string, string | undefined>;
 
+const LOG_LEVELS = [
+  "fatal",
+  "error",
+  "warn",
+  "info",
+  "debug",
+  "trace",
+  "silent",
+] as const;
+
+export type LogLevel = (typeof LOG_LEVELS)[number];
+
 export type AppConfig = {
   app: {
     env: "development" | "test" | "production";
     port: number;
+    logLevel: LogLevel;
     publicBaseUrl: string;
     maxUrlLength: number;
     shortCodeKey: string;
@@ -34,6 +47,7 @@ const EnvSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   PORT: port.default(3000),
+  LOG_LEVEL: z.enum(LOG_LEVELS).default("info"),
   PUBLIC_BASE_URL: z.url({ protocol: /^https?$/ }),
   MAX_URL_LENGTH: z.coerce.number().int().positive().default(2048),
   SHORT_CODE_KEY: required,
@@ -64,6 +78,7 @@ export function loadConfig(env: EnvSource = process.env): AppConfig {
     app: {
       env: vars.NODE_ENV,
       port: vars.PORT,
+      logLevel: vars.LOG_LEVEL,
       publicBaseUrl: vars.PUBLIC_BASE_URL,
       maxUrlLength: vars.MAX_URL_LENGTH,
       shortCodeKey: vars.SHORT_CODE_KEY,
