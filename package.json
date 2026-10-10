@@ -27,7 +27,9 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm deps:check && pnpm test:coverage",
-    "deps:check": "depcruise src"
+    "deps:check": "depcruise src",
+    "dev": "tsx watch --env-file-if-exists=.env src/entrypoints/api.ts",
+    "start": "node --env-file-if-exists=.env --enable-source-maps dist/entrypoints/api.js"
   },
   "dependencies": {
     "fastify": "^5.12.5",
