@@ -32,16 +32,16 @@ pnpm check
 
 ## Scripts
 
-| Script                              | What it does                                                 |
-| ----------------------------------- | ------------------------------------------------------------ |
-| `pnpm check`                        | Format check, lint, type check and tests: everything CI runs |
-| `pnpm test`                         | Runs the tests once                                          |
-| `pnpm test:watch`                   | Runs the tests on every change                               |
-| `pnpm test:coverage`                | Runs the tests with a coverage report in `coverage/`         |
-| `pnpm lint` / `pnpm lint:fix`       | Lints with oxlint, optionally fixing what it can             |
-| `pnpm format` / `pnpm format:check` | Formats with oxfmt, or only checks                           |
-| `pnpm typecheck`                    | Type checks sources, tests and config files                  |
-| `pnpm build`                        | Compiles `src/` to `dist/`                                   |
+| Script                              | What it does                                                      |
+| ----------------------------------- | ----------------------------------------------------------------- |
+| `pnpm check`                        | Format check, lint, type check and tests with coverage thresholds |
+| `pnpm test`                         | Runs the tests once                                               |
+| `pnpm test:watch`                   | Runs the tests on every change                                    |
+| `pnpm test:coverage`                | Runs the tests with a coverage report in `coverage/`              |
+| `pnpm lint` / `pnpm lint:fix`       | Lints with oxlint, optionally fixing what it can                  |
+| `pnpm format` / `pnpm format:check` | Formats with oxfmt, or only checks                                |
+| `pnpm typecheck`                    | Type checks sources, tests and config files                       |
+| `pnpm build`                        | Compiles `src/` to `dist/`                                        |
 
 ## Project layout
 
