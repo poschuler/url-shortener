@@ -1,0 +1,59 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "import", "node", "vitest"],
+  "options": {
+    "typeAware": true,
+    "reportUnusedDisableDirectives": "error"
+  },
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error"
+  },
+  "rules": {
+    "typescript/no-misused-promises": "error",
+    "typescript/return-await": "error",
+    "typescript/only-throw-error": "error",
+    "typescript/prefer-promise-reject-errors": "error",
+    "typescript/use-unknown-in-catch-callback-variable": "error",
+    "typescript/switch-exhaustiveness-check": "error",
+
+    "typescript/no-explicit-any": "error",
+    "typescript/no-unsafe-argument": "error",
+    "typescript/no-unsafe-assignment": "error",
+    "typescript/no-unsafe-call": "error",
+    "typescript/no-unsafe-member-access": "error",
+    "typescript/no-unsafe-return": "error",
+
+    "typescript/consistent-type-imports": "error",
+    "typescript/no-import-type-side-effects": "error",
+    "eslint/eqeqeq": ["error", "always", { "null": "ignore" }],
+
+    "eslint/no-console": "error",
+    "node/no-process-env": "error",
+    "unicorn/no-process-exit": "error",
+    "unicorn/prefer-node-protocol": "error",
+    "import/no-default-export": "error"
+  },
+  "overrides": [
+    {
+      "files": ["src/shared/config/**"],
+      "rules": { "node/no-process-env": "off" }
+    },
+    {
+      "files": ["src/entrypoints/**"],
+      "rules": { "unicorn/no-process-exit": "off" }
+    },
+    {
+      "files": ["*.config.ts"],
+      "rules": { "import/no-default-export": "off" }
+    },
+    {
+      "files": ["**/*.test.ts", "test/**"],
+      "rules": {
+        "typescript/no-unsafe-assignment": "off",
+        "typescript/no-unsafe-member-access": "off"
+      }
+    }
+  ],
+  "ignorePatterns": ["dist/**", "coverage/**"]
+}
