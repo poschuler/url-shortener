@@ -26,15 +26,18 @@
     "lint:fix": "oxlint --fix",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage"
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm deps:check && pnpm test:coverage",
+    "deps:check": "depcruise src"
   },
   "dependencies": {
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@swc/core": "^1.16.13",
     "@tsconfig/node24": "^24.0.5",
     "@types/node": "^24.1.0",
     "@vitest/coverage-v8": "5.0.3",
+    "dependency-cruiser": "^18.5.0",
     "oxfmt": "0.72.0",
     "oxlint": "^1.87.0",
     "oxlint-tsgolint": "^7.0.2003",

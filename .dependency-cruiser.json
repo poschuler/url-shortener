@@ -1,0 +1,122 @@
+{
+  "$schema": "https://raw.githubusercontent.com/sverweij/dependency-cruiser/main/src/schema/configuration.schema.json",
+  "forbidden": [
+    {
+      "name": "no-circular",
+      "comment": "Circular dependencies hide the real direction of a dependency.",
+      "severity": "error",
+      "from": {},
+      "to": {
+        "circular": true
+      }
+    },
+    {
+      "name": "not-to-unresolvable",
+      "comment": "Every import must resolve to a file or an installed package.",
+      "severity": "error",
+      "from": {},
+      "to": {
+        "couldNotResolve": true
+      }
+    },
+    {
+      "name": "not-to-dev-dep",
+      "comment": "src/ ships to production; devDependencies are not installed there.",
+      "severity": "error",
+      "from": {
+        "path": "^src/"
+      },
+      "to": {
+        "dependencyTypes": ["npm-dev"]
+      }
+    },
+    {
+      "name": "no-src-alias-in-src",
+      "comment": "The #src alias is for tests only; src/ uses relative imports (ADR-0006).",
+      "severity": "error",
+      "from": {
+        "path": "^src/"
+      },
+      "to": {
+        "dependencyTypes": ["aliased-subpath-import"]
+      }
+    },
+    {
+      "name": "domain-only-depends-on-domain",
+      "comment": "A module's domain depends only on its own domain and on shared/domain: no other layers, no packages, no Node APIs.",
+      "severity": "error",
+      "from": {
+        "path": "^src/modules/([^/]+)/domain/"
+      },
+      "to": {
+        "pathNot": ["^src/modules/$1/domain/", "^src/shared/domain/"]
+      }
+    },
+    {
+      "name": "application-only-depends-on-domain",
+      "comment": "Use cases depend only on their own domain and application layers and on shared/domain. Adapters plug in through ports.",
+      "severity": "error",
+      "from": {
+        "path": "^src/modules/([^/]+)/application/"
+      },
+      "to": {
+        "pathNot": [
+          "^src/modules/$1/(domain|application)/",
+          "^src/shared/domain/"
+        ]
+      }
+    },
+    {
+      "name": "infrastructure-not-to-http",
+      "comment": "Driven adapters (infrastructure) and driving adapters (http) do not know each other; the entrypoints wire them.",
+      "severity": "error",
+      "from": {
+        "path": "^src/modules/([^/]+)/infrastructure/"
+      },
+      "to": {
+        "path": "^src/modules/$1/http/"
+      }
+    },
+    {
+      "name": "http-not-to-infrastructure",
+      "comment": "Driven adapters (infrastructure) and driving adapters (http) do not know each other; the entrypoints wire them.",
+      "severity": "error",
+      "from": {
+        "path": "^src/modules/([^/]+)/http/"
+      },
+      "to": {
+        "path": "^src/modules/$1/infrastructure/"
+      }
+    },
+    {
+      "name": "shared-not-to-modules",
+      "comment": "shared/ is used by the modules; it never depends on them.",
+      "severity": "error",
+      "from": {
+        "path": "^src/shared/"
+      },
+      "to": {
+        "path": "^src/modules/"
+      }
+    },
+    {
+      "name": "modules-only-through-index",
+      "comment": "A module reaches another module only through its public index.ts. Only the entrypoints (composition roots) may import module internals.",
+      "severity": "error",
+      "from": {
+        "path": "^src/modules/([^/]+)/"
+      },
+      "to": {
+        "path": "^src/modules/",
+        "pathNot": ["^src/modules/$1/", "^src/modules/[^/]+/index\\.ts$"]
+      }
+    }
+  ],
+  "options": {
+    "parser": "swc",
+    "tsPreCompilationDeps": true,
+    "tsConfig": {
+      "fileName": "tsconfig.json"
+    }
+  }
+}
