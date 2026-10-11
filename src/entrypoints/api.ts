@@ -3,7 +3,7 @@ import { pino } from "pino";
 
 import { PostgresRangeAllocator } from "../modules/links/infrastructure/postgres/postgres-range-allocator.js";
 import { RangedNumberSequence } from "../modules/links/infrastructure/ranges/ranged-number-sequence.js";
-import { loadConfig } from "../shared/config/config.js";
+import { loadApiConfig } from "../shared/config/config.js";
 import { buildServer } from "../shared/http/build-server.js";
 import { createPool } from "../shared/postgres/create-pool.js";
 
@@ -14,7 +14,7 @@ const SHUTDOWN_TIMEOUT_MS = 8_000;
 const RANGE_REFILL_THRESHOLD = 0.2;
 const RANGE_RETRY = { maxAttempts: 3, baseDelayMs: 50 };
 
-const config = loadConfig();
+const config = loadApiConfig();
 const logger = pino({ level: config.app.logLevel });
 
 const db = new Kysely<unknown>({

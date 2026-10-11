@@ -1,9 +1,9 @@
 import { Pool } from "pg";
 import type { BaseLogger } from "pino";
 
-import type { AppConfig } from "../config/config.js";
+import type { ApiConfig } from "../config/config.js";
 
-export type PostgresConfig = AppConfig["db"]["postgres"];
+export type PostgresConfig = ApiConfig["db"]["postgres"];
 
 export function createPool(config: PostgresConfig, logger: BaseLogger): Pool {
   const pool = new Pool({

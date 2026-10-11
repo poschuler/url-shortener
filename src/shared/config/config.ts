@@ -14,7 +14,7 @@ const LOG_LEVELS = [
 
 export type LogLevel = (typeof LOG_LEVELS)[number];
 
-export type AppConfig = {
+export type ApiConfig = {
   app: {
     env: "development" | "test" | "production";
     port: number;
@@ -39,9 +39,12 @@ export type AppConfig = {
   };
 };
 
+// The write API does not read or cache Links, so it needs no Redis.
+export type WriteApiConfig = Omit<ApiConfig, "redis">;
+
 export type MigrateConfig = {
-  app: Pick<AppConfig["app"], "logLevel">;
-  db: AppConfig["db"];
+  app: Pick<ApiConfig["app"], "logLevel">;
+  db: ApiConfig["db"];
 };
 
 const port = z.coerce.number().int().min(1).max(65_535);
@@ -61,20 +64,34 @@ const PostgresEnv = z.object({
   PG_NAME: required,
 });
 
-const ApiEnv = z.object({
+const ShortenEnv = z.object({
+  PUBLIC_BASE_URL: z.url({ protocol: /^https?$/ }),
+  MAX_URL_LENGTH: z.coerce.number().int().positive().default(2048),
+  SHORT_CODE_KEY: required,
+});
+
+const RedisEnv = z.object({
+  REDIS_HOST: required.default("localhost"),
+  REDIS_PORT: port.default(6379),
+  REDIS_PASSWORD: required,
+});
+
+const WriteApiEnv = z.object({
   ...LoggingEnv.shape,
   ...PostgresEnv.shape,
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
-  PORT: port.default(3000),
-  PUBLIC_BASE_URL: z.url({ protocol: /^https?$/ }),
-  MAX_URL_LENGTH: z.coerce.number().int().positive().default(2048),
-  SHORT_CODE_KEY: required,
+  PORT: port.default(3001),
+  ...ShortenEnv.shape,
+});
 
-  REDIS_HOST: required.default("localhost"),
-  REDIS_PORT: port.default(6379),
-  REDIS_PASSWORD: required,
+// The all-in-one API serves the write routes too, so it needs everything
+// the write API needs, plus Redis.
+const ApiEnv = z.object({
+  ...WriteApiEnv.shape,
+  ...RedisEnv.shape,
+  PORT: port.default(3000),
 });
 
 const MigrateEnv = z.object({
@@ -82,25 +99,23 @@ const MigrateEnv = z.object({
   ...PostgresEnv.shape,
 });
 
-export function loadConfig(env: EnvSource = process.env): AppConfig {
+export function loadApiConfig(env: EnvSource = process.env): ApiConfig {
   const vars = parseEnv(ApiEnv, env);
 
   return {
-    app: {
-      env: vars.NODE_ENV,
-      port: vars.PORT,
-      logLevel: vars.LOG_LEVEL,
-      publicBaseUrl: vars.PUBLIC_BASE_URL,
-      maxUrlLength: vars.MAX_URL_LENGTH,
-      shortCodeKey: vars.SHORT_CODE_KEY,
-    },
-    db: toDbConfig(vars),
+    ...toWriteApiConfig(vars),
     redis: {
       host: vars.REDIS_HOST,
       port: vars.REDIS_PORT,
       password: vars.REDIS_PASSWORD,
     },
   };
+}
+
+export function loadWriteApiConfig(
+  env: EnvSource = process.env,
+): WriteApiConfig {
+  return toWriteApiConfig(parseEnv(WriteApiEnv, env));
 }
 
 export function loadMigrateConfig(env: EnvSource = process.env): MigrateConfig {
@@ -124,7 +139,21 @@ function parseEnv<T extends z.ZodType>(schema: T, env: EnvSource): z.output<T> {
   return result.data;
 }
 
-function toDbConfig(vars: z.output<typeof PostgresEnv>): AppConfig["db"] {
+function toWriteApiConfig(vars: z.output<typeof WriteApiEnv>): WriteApiConfig {
+  return {
+    app: {
+      env: vars.NODE_ENV,
+      port: vars.PORT,
+      logLevel: vars.LOG_LEVEL,
+      publicBaseUrl: vars.PUBLIC_BASE_URL,
+      maxUrlLength: vars.MAX_URL_LENGTH,
+      shortCodeKey: vars.SHORT_CODE_KEY,
+    },
+    db: toDbConfig(vars),
+  };
+}
+
+function toDbConfig(vars: z.output<typeof PostgresEnv>): ApiConfig["db"] {
   return {
     postgres: {
       host: vars.PG_HOST,
