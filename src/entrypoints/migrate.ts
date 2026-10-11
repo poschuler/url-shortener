@@ -2,11 +2,11 @@ import { Kysely, PostgresDialect } from "kysely";
 import { pino } from "pino";
 
 import { linksMigrationsFolder } from "../modules/links/infrastructure/postgres/migrations-folder.js";
-import { loadConfig } from "../shared/config/config.js";
+import { loadMigrateConfig } from "../shared/config/config.js";
 import { createPool } from "../shared/postgres/create-pool.js";
 import { migrateDown, migrateToLatest } from "../shared/postgres/migrations.js";
 
-const config = loadConfig();
+const config = loadMigrateConfig();
 const logger = pino({ level: config.app.logLevel });
 
 const command = process.argv[2] ?? "latest";
