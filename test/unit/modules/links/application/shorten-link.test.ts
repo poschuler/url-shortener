@@ -4,8 +4,8 @@ import { ShortenLink } from "#src/modules/links/application/shorten-link.js";
 import { LinkErrors } from "#src/modules/links/domain/link.errors.js";
 import { permutationKeyFromHex } from "#src/modules/links/domain/short-code-permutation.js";
 import { ShortCode } from "#src/modules/links/domain/short-code.vo.js";
-import { InMemoryIdGenerator } from "#src/modules/links/infrastructure/in-memory/in-memory-id-generator.js";
 import { InMemoryLinkRepository } from "#src/modules/links/infrastructure/in-memory/in-memory-link-repository.js";
+import { InMemoryNumberSequence } from "#src/modules/links/infrastructure/in-memory/in-memory-number-sequence.js";
 import { Result } from "#src/shared/domain/result.js";
 
 const KEY = permutationKeyFromHex("000102030405060708090a0b0c0d0e0f");
@@ -14,7 +14,7 @@ const NOW = new Date("2026-10-10T12:00:00.000Z");
 function setup() {
   const repository = new InMemoryLinkRepository();
   const shortenLink = new ShortenLink({
-    idGenerator: new InMemoryIdGenerator(),
+    sequence: new InMemoryNumberSequence(),
     repository,
     shortCodeKey: KEY,
     targetUrlRules: { maxLength: 2048, reservedHostname: "short.example" },
@@ -63,7 +63,7 @@ describe("ShortenLink", () => {
     expect(repository.all()).toEqual([]);
   });
 
-  it("does not use up an id when the Target URL is invalid", async () => {
+  it("does not use up a number when the Target URL is invalid", async () => {
     const { shortenLink } = setup();
 
     await shortenLink.execute({ url: "not a url" });
