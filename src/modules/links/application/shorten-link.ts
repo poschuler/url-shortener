@@ -5,10 +5,10 @@ import type { LinkRepository } from "../domain/link.repository.js";
 import type { PermutationKey } from "../domain/short-code-permutation.js";
 import { ShortCode } from "../domain/short-code.vo.js";
 import { TargetUrl, type TargetUrlRules } from "../domain/target-url.js";
-import type { IdGenerator } from "./ports.js";
+import type { NumberSequence } from "./ports.js";
 
 export type ShortenLinkDeps = {
-  idGenerator: IdGenerator;
+  sequence: NumberSequence;
   repository: LinkRepository;
   shortCodeKey: PermutationKey;
   targetUrlRules: TargetUrlRules;
@@ -25,16 +25,16 @@ export class ShortenLink {
   public async execute(
     input: ShortenLinkInput,
   ): Promise<Result<Link, LinkError>> {
-    // Validate before taking an id, so invalid input never burns one.
+    // Validate before taking a number, so invalid input never burns one.
     const url = TargetUrl.parse(input.url, this.deps.targetUrlRules);
 
     if (!url.ok) {
       return url;
     }
 
-    const id = await this.deps.idGenerator.next();
+    const number = await this.deps.sequence.next();
     const link = Link.create({
-      code: ShortCode.fromNumber(id, this.deps.shortCodeKey),
+      code: ShortCode.fromNumber(number, this.deps.shortCodeKey),
       url: url.value,
       now: this.deps.now(),
     });

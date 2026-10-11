@@ -1,6 +1,6 @@
 import type { ShortCode } from "../domain/short-code.vo.js";
 
-export interface IdGenerator {
+export interface NumberSequence {
   next(): Promise<bigint>;
 }
 
