@@ -29,16 +29,22 @@
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm deps:check && pnpm test:coverage",
     "deps:check": "depcruise src",
     "dev": "tsx watch --env-file-if-exists=.env src/entrypoints/api.ts",
-    "start": "node --env-file-if-exists=.env --enable-source-maps dist/entrypoints/api.js"
+    "start": "node --env-file-if-exists=.env --enable-source-maps dist/entrypoints/api.js",
+    "db:migrate": "tsx --env-file-if-exists=.env src/entrypoints/migrate.ts",
+    "db:migrate:down": "tsx --env-file-if-exists=.env src/entrypoints/migrate.ts down"
   },
   "dependencies": {
     "fastify": "^5.12.5",
+    "kysely": "^0.29.6",
+    "pg": "^8.23.1",
+    "pino": "^10.4.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@swc/core": "^1.16.13",
     "@tsconfig/node24": "^24.0.5",
     "@types/node": "^24.1.0",
+    "@types/pg": "^8.23.1",
     "@vitest/coverage-v8": "5.0.3",
     "dependency-cruiser": "^18.5.0",
     "oxfmt": "0.72.0",
