@@ -26,9 +26,13 @@ export function createPool(config: PostgresConfig, logger: BaseLogger): Pool {
   // An idle client that loses its connection (for example, Postgres
   // restarts) emits "error" on the pool. Without a listener, Node treats it
   // as an uncaught exception and the process dies; the pool already drops
-  // the broken client and opens a new one on the next query.
+  // the broken client and opens a new one on the next query, so a warning
+  // is enough.
   pool.on("error", (error) => {
-    logger.error({ err: error }, "Idle Postgres client failed");
+    // Not the error itself: pg attaches the whole client to it, and the
+    // logger would dump its internal state (host, user, database...).
+    const { message, code } = error as Error & { code?: string };
+    logger.warn({ err: { message, code } }, "Idle Postgres client failed");
   });
 
   return pool;
