@@ -3,7 +3,24 @@
 name: url-shortener
 
 services:
+  # Applies the database migrations, then exits. The API waits for it.
+  migrate:
+    image: url-shortener
+    build: .
+    command: ["node", "--enable-source-maps", "dist/entrypoints/migrate.js"]
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      PG_HOST: postgres
+      PG_PORT: 5432
+      PG_USER: ${PG_USER:?set PG_USER in .env}
+      PG_PASSWORD: ${PG_PASSWORD:?set PG_PASSWORD in .env}
+      PG_NAME: ${PG_NAME:?set PG_NAME in .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   api:
+    image: url-shortener
     build: .
     environment:
       NODE_ENV: production
@@ -25,6 +42,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     healthcheck:

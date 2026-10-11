@@ -37,9 +37,10 @@ pnpm check
 | Script                              | What it does                                                                             |
 | ----------------------------------- | ---------------------------------------------------------------------------------------- |
 | `pnpm check`                        | Format check, lint, type check, dependency boundaries and tests with coverage thresholds |
-| `pnpm test`                         | Runs the tests once                                                                      |
-| `pnpm test:watch`                   | Runs the tests on every change                                                           |
-| `pnpm test:coverage`                | Runs the tests with a coverage report in `coverage/`                                     |
+| `pnpm test`                         | Runs the unit tests once                                                                 |
+| `pnpm test:watch`                   | Runs the unit tests on every change                                                      |
+| `pnpm test:coverage`                | Runs the unit tests with a coverage report in `coverage/`                                |
+| `pnpm test:integration`             | Runs the integration tests against Postgres in a container (needs Docker)                |
 | `pnpm lint` / `pnpm lint:fix`       | Lints with oxlint, optionally fixing what it can                                         |
 | `pnpm format` / `pnpm format:check` | Formats with oxfmt, or only checks                                                       |
 | `pnpm typecheck`                    | Type checks sources, tests and config files                                              |
@@ -47,10 +48,12 @@ pnpm check
 | `pnpm build`                        | Compiles `src/` to `dist/`                                                               |
 | `pnpm dev`                          | Runs the API from `src/`, restarting on every change                                     |
 | `pnpm start`                        | Runs the compiled API from `dist/` (run `pnpm build` first)                              |
+| `pnpm db:migrate`                   | Applies the pending database migrations to the Postgres in `.env`                        |
+| `pnpm db:migrate:down`              | Reverts the last applied migration                                                       |
 
 ## Docker
 
-`compose.yaml` runs the API with Postgres 17 and Redis 7, all with health checks. It reads its values from `.env`:
+`compose.yaml` runs the API with Postgres 17 and Redis 7, all with health checks. It reads its values from `.env`. A one-off `migrate` service applies the database migrations first; the API starts only if it succeeds:
 
 ```bash
 docker compose up -d --build --wait
@@ -58,7 +61,11 @@ curl -i localhost:3000/ready
 docker compose down
 ```
 
-Postgres and Redis are also published on `127.0.0.1`, so `pnpm dev` can use them from the host. `docker compose down -v` also deletes the Postgres volume.
+Postgres and Redis are also published on `127.0.0.1`, so `pnpm dev` can use them from the host. `docker compose down -v` also deletes the Postgres volume. To revert the last migration inside the stack:
+
+```bash
+docker compose run --rm migrate node dist/entrypoints/migrate.js down
+```
 
 The `Dockerfile` builds a production image that runs the API as the non-root `node` user. To run it on its own:
 
@@ -72,7 +79,7 @@ curl -i localhost:3000/health
 
 ## Continuous integration
 
-GitHub Actions runs `pnpm check` and builds the Docker image on every push to `main` and on every pull request (`.github/workflows/ci.yml`).
+GitHub Actions runs `pnpm check`, the integration tests and the Docker image build on every push to `main` and on every pull request (`.github/workflows/ci.yml`).
 
 ## Project layout
 
