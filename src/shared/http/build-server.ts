@@ -5,17 +5,22 @@ import type { Logger } from "pino";
 
 import { registerProblemDetails, sendProblem } from "./problem-details.js";
 
+// Below the 3s timeout of the compose healthcheck, so /ready always answers.
+const READINESS_TIMEOUT_MS = 2_000;
+
 // Resolves when the dependency is usable and rejects with the reason when not.
 export type ReadinessCheck = () => Promise<void>;
 
 export type ServerOptions = {
   logger: Logger;
   readinessChecks?: Record<string, ReadinessCheck>;
+  readinessTimeoutMs?: number;
 };
 
 export function buildServer({
   logger,
   readinessChecks = {},
+  readinessTimeoutMs = READINESS_TIMEOUT_MS,
 }: ServerOptions): FastifyInstance {
   // Widened so Fastify keeps its default logger type in FastifyInstance.
   const loggerInstance: FastifyBaseLogger = logger;
@@ -45,7 +50,7 @@ export function buildServer({
     const results = await Promise.all(
       Object.entries(readinessChecks).map(async ([name, check]) => {
         try {
-          await check();
+          await withTimeout(check(), readinessTimeoutMs);
           return null;
         } catch (error) {
           request.log.warn(
@@ -66,4 +71,21 @@ export function buildServer({
   });
 
   return app;
+}
+
+// A hung dependency must fail the check instead of hanging the probe.
+// The check itself keeps running: Promise.race cannot cancel it.
+async function withTimeout(promise: Promise<void>, ms: number): Promise<void> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`Timed out after ${ms} ms`));
+    }, ms);
+  });
+
+  try {
+    await Promise.race([promise, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
 }

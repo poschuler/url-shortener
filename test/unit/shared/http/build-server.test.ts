@@ -8,6 +8,7 @@ const passing = async () => {};
 const failing = async () => {
   throw new Error("Connection refused");
 };
+const hanging = () => new Promise<void>(() => {});
 
 describe("buildServer", () => {
   it("answers /health with 200", async () => {
@@ -54,6 +55,19 @@ describe("buildServer", () => {
       status: 503,
       detail: "Not ready: postgres, ids",
     });
+  });
+
+  it("fails a check that takes longer than the timeout", async () => {
+    const app = buildServer({
+      logger,
+      readinessChecks: { postgres: hanging, redis: passing },
+      readinessTimeoutMs: 10,
+    });
+
+    const response = await app.inject({ url: "/ready" });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toMatchObject({ detail: "Not ready: postgres" });
   });
 
   it("answers unknown routes with a problem", async () => {
