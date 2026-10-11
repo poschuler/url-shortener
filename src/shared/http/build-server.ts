@@ -1,30 +1,26 @@
 import { randomUUID } from "node:crypto";
 
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { type FastifyBaseLogger, type FastifyInstance } from "fastify";
+import type { Logger } from "pino";
 
-import type { LogLevel } from "../config/config.js";
 import { registerProblemDetails, sendProblem } from "./problem-details.js";
-
-const QUIETER_THAN_WARN: ReadonlySet<LogLevel> = new Set([
-  "fatal",
-  "error",
-  "silent",
-]);
 
 // Resolves when the dependency is usable and rejects with the reason when not.
 export type ReadinessCheck = () => Promise<void>;
 
 export type ServerOptions = {
-  logLevel: LogLevel;
+  logger: Logger;
   readinessChecks?: Record<string, ReadinessCheck>;
 };
 
 export function buildServer({
-  logLevel,
+  logger,
   readinessChecks = {},
 }: ServerOptions): FastifyInstance {
+  // Widened so Fastify keeps its default logger type in FastifyInstance.
+  const loggerInstance: FastifyBaseLogger = logger;
   const app = Fastify({
-    logger: { level: logLevel },
+    loggerInstance,
     requestIdHeader: "x-request-id",
     genReqId: () => randomUUID(),
   });
@@ -37,9 +33,9 @@ export function buildServer({
 
   // Probes hit these every few seconds: log them only when something is wrong.
   // A route's logLevel replaces the server's, so never make it chattier.
-  const probe = {
-    logLevel: QUIETER_THAN_WARN.has(logLevel) ? logLevel : "warn",
-  } as const;
+  const probe = logger.isLevelEnabled("warn")
+    ? ({ logLevel: "warn" } as const)
+    : {};
 
   // Liveness: the process is up and serving requests.
   app.get("/health", probe, async () => ({ status: "ok" }));

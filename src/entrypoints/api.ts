@@ -1,3 +1,5 @@
+import { pino } from "pino";
+
 import { loadConfig } from "../shared/config/config.js";
 import { buildServer } from "../shared/http/build-server.js";
 
@@ -5,7 +7,8 @@ import { buildServer } from "../shared/http/build-server.js";
 const SHUTDOWN_TIMEOUT_MS = 8_000;
 
 const config = loadConfig();
-const app = buildServer({ logLevel: config.app.logLevel });
+const logger = pino({ level: config.app.logLevel });
+const app = buildServer({ logger });
 
 async function shutdown(signal: NodeJS.Signals): Promise<void> {
   app.log.info({ signal }, "Shutting down");

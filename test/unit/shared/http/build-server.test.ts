@@ -1,7 +1,9 @@
+import { pino } from "pino";
 import { describe, expect, it } from "vitest";
 
 import { buildServer } from "#src/shared/http/build-server.js";
 
+const logger = pino({ level: "silent" });
 const passing = async () => {};
 const failing = async () => {
   throw new Error("Connection refused");
@@ -9,7 +11,7 @@ const failing = async () => {
 
 describe("buildServer", () => {
   it("answers /health with 200", async () => {
-    const app = buildServer({ logLevel: "silent" });
+    const app = buildServer({ logger });
 
     const response = await app.inject({ url: "/health" });
 
@@ -18,7 +20,7 @@ describe("buildServer", () => {
   });
 
   it("is ready when there is nothing to check", async () => {
-    const app = buildServer({ logLevel: "silent" });
+    const app = buildServer({ logger });
 
     const response = await app.inject({ url: "/ready" });
 
@@ -28,7 +30,7 @@ describe("buildServer", () => {
 
   it("is ready when every check passes", async () => {
     const app = buildServer({
-      logLevel: "silent",
+      logger,
       readinessChecks: { postgres: passing, redis: passing },
     });
 
@@ -39,7 +41,7 @@ describe("buildServer", () => {
 
   it("answers 503 naming the checks that fail", async () => {
     const app = buildServer({
-      logLevel: "silent",
+      logger,
       readinessChecks: { postgres: failing, redis: passing, ids: failing },
     });
 
@@ -55,7 +57,7 @@ describe("buildServer", () => {
   });
 
   it("answers unknown routes with a problem", async () => {
-    const app = buildServer({ logLevel: "silent" });
+    const app = buildServer({ logger });
 
     const response = await app.inject({ url: "/nope" });
 
@@ -66,7 +68,7 @@ describe("buildServer", () => {
   });
 
   it("echoes the x-request-id it receives", async () => {
-    const app = buildServer({ logLevel: "silent" });
+    const app = buildServer({ logger });
 
     const response = await app.inject({
       url: "/health",
@@ -77,7 +79,7 @@ describe("buildServer", () => {
   });
 
   it("generates a UUID request id when none is sent", async () => {
-    const app = buildServer({ logLevel: "silent" });
+    const app = buildServer({ logger });
 
     const response = await app.inject({ url: "/health" });
 
