@@ -31,6 +31,22 @@ jobs:
       # Format, lint, types, dependency boundaries and tests with coverage.
       - run: pnpm check
 
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Testcontainers starts Postgres with the runner's Docker.
+      - run: pnpm test:integration
+
   docker:
     name: Docker image
     runs-on: ubuntu-latest

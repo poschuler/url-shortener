@@ -1,3 +1,6 @@
 allowBuilds:
   "@swc/core": false
+  cpu-features: false
   esbuild: false
+  protobufjs: false
+  ssh2: false
