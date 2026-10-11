@@ -113,6 +113,9 @@
     }
   ],
   "options": {
+    "doNotFollow": {
+      "path": "node_modules"
+    },
     "parser": "swc",
     "tsPreCompilationDeps": true,
     "tsConfig": {
