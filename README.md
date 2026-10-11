@@ -1,8 +1,10 @@
 # url-shortener
 
+[![CI](https://github.com/poschuler/url-shortener/actions/workflows/ci.yml/badge.svg)](https://github.com/poschuler/url-shortener/actions/workflows/ci.yml)
+
 A URL shortener built with Node.js, TypeScript and Fastify: a modular monolith with hexagonal architecture, used as a reference project for posts on [poschuler.com](https://poschuler.com).
 
-> **Status: work in progress.** The domain layer and the HTTP server skeleton (health and readiness probes) are in place. The Link APIs, persistence and the Docker Compose stack are not there yet.
+> **Status: work in progress.** The domain layer and the HTTP server skeleton (health and readiness probes) are in place. The Link APIs and persistence are not there yet.
 
 ## What it does
 
@@ -48,7 +50,17 @@ pnpm check
 
 ## Docker
 
-The `Dockerfile` builds a production image that runs the API as the non-root `node` user:
+`compose.yaml` runs the API with Postgres 17 and Redis 7, all with health checks. It reads its values from `.env`:
+
+```bash
+docker compose up -d --build --wait
+curl -i localhost:3000/ready
+docker compose down
+```
+
+Postgres and Redis are also published on `127.0.0.1`, so `pnpm dev` can use them from the host. `docker compose down -v` also deletes the Postgres volume.
+
+The `Dockerfile` builds a production image that runs the API as the non-root `node` user. To run it on its own:
 
 ```bash
 docker build -t url-shortener .
@@ -57,6 +69,10 @@ curl -i localhost:3000/health
 ```
 
 `docker run --env-file` keeps quotes as part of the value, so keep the values in `.env` unquoted. The container shuts down gracefully on `SIGTERM` (`docker stop`).
+
+## Continuous integration
+
+GitHub Actions runs `pnpm check` and builds the Docker image on every push to `main` and on every pull request (`.github/workflows/ci.yml`).
 
 ## Project layout
 
