@@ -1,3 +1,4 @@
+import { pino } from "pino";
 import { describe, expect, it, vi } from "vitest";
 
 import { InMemoryRangeAllocator } from "#src/modules/links/infrastructure/in-memory/in-memory-range-allocator.js";
@@ -12,14 +13,17 @@ const RETRY = { maxAttempts: 3, baseDelayMs: 50 };
 function setup(allocator: RangeAllocator = new InMemoryRangeAllocator(10n)) {
   const allocate = vi.spyOn(allocator, "allocate");
   const sleep = vi.fn<(ms: number) => Promise<void>>(() => Promise.resolve());
+  const logger = pino({ level: "silent" });
+  const warn = vi.spyOn(logger, "warn");
   const sequence = new RangedNumberSequence({
     allocator,
     refillThreshold: 0.2,
     retry: RETRY,
+    logger,
     sleep,
   });
 
-  return { allocate, sequence, sleep };
+  return { allocate, sequence, sleep, warn };
 }
 
 // Rejects while `down` is true; otherwise behaves like the in-memory SEQUENCE.
@@ -137,14 +141,19 @@ describe("RangedNumberSequence", () => {
 
   it("keeps serving the current range when a background refill fails", async () => {
     const { allocator, database } = flakyAllocator(10n);
-    const { sequence } = setup(allocator);
-
+    const { sequence, warn } = setup(allocator);
+    
     await sequence.next();
     database.down = true;
 
     expect(await take(sequence, 9)).toEqual(numbersFrom(2, 9));
 
     await settle();
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
+      { err: new Error("database is down") },
+      "Background range refill failed",
+    );
+
     database.down = false;
     expect(await sequence.next()).toBe(11n);
   });
@@ -188,6 +197,7 @@ describe("RangedNumberSequence", () => {
             allocator: new InMemoryRangeAllocator(),
             refillThreshold,
             retry: RETRY,
+            logger: pino({ level: "silent" }),
           }),
       ).toThrow(RangeError);
     },
@@ -200,6 +210,7 @@ describe("RangedNumberSequence", () => {
           allocator: new InMemoryRangeAllocator(),
           refillThreshold: 0.2,
           retry: { maxAttempts, baseDelayMs: 50 },
+          logger: pino({ level: "silent" }),
         }),
     ).toThrow(RangeError);
   });

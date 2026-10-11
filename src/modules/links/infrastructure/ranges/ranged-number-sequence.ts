@@ -1,5 +1,7 @@
 import { setTimeout as delay } from "node:timers/promises";
 
+import type { BaseLogger } from "pino";
+
 import type { NumberSequence } from "../../application/ports.js";
 import type { NumberRange, RangeAllocator } from "./range-allocator.js";
 
@@ -13,6 +15,7 @@ export type RangedNumberSequenceOptions = {
   /** Fraction of the current range left (0 to 1) that triggers an early refill. */
   refillThreshold: number;
   retry: RetryOptions;
+  logger: BaseLogger;
   sleep?: (ms: number) => Promise<void>;
 };
 
@@ -26,6 +29,7 @@ export class RangedNumberSequence implements NumberSequence {
   private readonly allocator: RangeAllocator;
   private readonly refillThreshold: number;
   private readonly retry: RetryOptions;
+  private readonly logger: BaseLogger;
   private readonly sleep: (ms: number) => Promise<void>;
 
   private current: CurrentRange | null = null;
@@ -47,6 +51,7 @@ export class RangedNumberSequence implements NumberSequence {
     this.allocator = options.allocator;
     this.refillThreshold = options.refillThreshold;
     this.retry = options.retry;
+    this.logger = options.logger;
     this.sleep = options.sleep ?? ((ms) => delay(ms));
   }
 
@@ -109,9 +114,11 @@ export class RangedNumberSequence implements NumberSequence {
     const left = Number(this.current.end - this.current.next);
 
     if (left <= this.refillThreshold * Number(this.current.size)) {
-      // Errors are dropped here: the current range still has numbers, and
-      // if it runs out, next() refills again and gets the error itself.
-      this.refill().catch(() => undefined);
+      // Only logged: the current range still has numbers, and if it runs
+      // out, next() refills again and gets the error itself.
+      this.refill().catch((error: unknown) => {
+        this.logger.warn({ err: error }, "Background range refill failed");
+      });
     }
   }
 
