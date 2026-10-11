@@ -17,6 +17,10 @@ export function createPool(config: PostgresConfig, logger: BaseLogger): Pool {
     // or every connection is busy.
     connectionTimeoutMillis: 5_000,
     statement_timeout: 10_000,
+    // Enforced by the client, so it also fires when Postgres hangs and
+    // cannot apply statement_timeout. Above it, so Postgres usually cancels
+    // the query first.
+    query_timeout: 12_000,
   });
 
   // An idle client that loses its connection (for example, Postgres
