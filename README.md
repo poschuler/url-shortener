@@ -2,7 +2,7 @@
 
 A URL shortener built with Node.js, TypeScript and Fastify: a modular monolith with hexagonal architecture, used as a reference project for posts on [poschuler.com](https://poschuler.com).
 
-> **Status: work in progress.** The domain layer is being built. The HTTP APIs, persistence and Docker setup are not there yet.
+> **Status: work in progress.** The domain layer and the HTTP server skeleton (health and readiness probes) are in place. The Link APIs, persistence and the Docker Compose stack are not there yet.
 
 ## What it does
 
@@ -43,6 +43,20 @@ pnpm check
 | `pnpm typecheck`                    | Type checks sources, tests and config files                                              |
 | `pnpm deps:check`                   | Checks module and layer boundaries with dependency-cruiser                               |
 | `pnpm build`                        | Compiles `src/` to `dist/`                                                               |
+| `pnpm dev`                          | Runs the API from `src/`, restarting on every change                                     |
+| `pnpm start`                        | Runs the compiled API from `dist/` (run `pnpm build` first)                              |
+
+## Docker
+
+The `Dockerfile` builds a production image that runs the API as the non-root `node` user:
+
+```bash
+docker build -t url-shortener .
+docker run --rm -p 3000:3000 --env-file .env url-shortener
+curl -i localhost:3000/health
+```
+
+`docker run --env-file` keeps quotes as part of the value, so keep the values in `.env` unquoted. The container shuts down gracefully on `SIGTERM` (`docker stop`).
 
 ## Project layout
 

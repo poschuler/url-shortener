@@ -1,0 +1,8 @@
+# Only what the image build needs; everything else stays out of the context.
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!tsconfig.json
+!tsconfig.build.json
+!src/
