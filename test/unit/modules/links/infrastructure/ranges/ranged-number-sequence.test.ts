@@ -142,7 +142,7 @@ describe("RangedNumberSequence", () => {
   it("keeps serving the current range when a background refill fails", async () => {
     const { allocator, database } = flakyAllocator(10n);
     const { sequence, warn } = setup(allocator);
-    
+
     await sequence.next();
     database.down = true;
 
