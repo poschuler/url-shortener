@@ -22,6 +22,7 @@ export type LinksWriteModuleDeps = {
   shortCodeKey: string;
   publicBaseUrl: string;
   maxUrlLength: number;
+  rateLimitMax: number;
 };
 
 export type LinksWriteModule = {
@@ -61,6 +62,7 @@ export function createLinksWriteModule(
       registerShortenLinkRoute(app, {
         shortenLink,
         publicBaseUrl: deps.publicBaseUrl,
+        rateLimitMax: deps.rateLimitMax,
       });
     },
   };

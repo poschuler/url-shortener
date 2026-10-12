@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { buildServer } from "#src/shared/http/build-server.js";
 
 const logger = pino({ level: "silent" });
-const options = { logger, rateLimit: { max: 100, timeWindowMs: 60_000 } };
+const options = { logger, rateLimitWindowMs: 60_000 };
 const passing = async () => {};
 const failing = async () => {
   throw new Error("Connection refused");
@@ -103,16 +103,20 @@ describe("buildServer", () => {
     );
   });
 
-  it("does not rate limit routes that do not opt in", async () => {
-    const app = await buildServer({
-      ...options,
-      rateLimit: { max: 1, timeWindowMs: 60_000 },
-    });
+  it("rate limits only the routes that opt in", async () => {
+    const app = await buildServer(options);
+    app.get("/limited", { config: { rateLimit: { max: 1 } } }, (_, reply) =>
+      reply.send("ok"),
+    );
 
+    await app.inject({ url: "/limited" });
+    const limited = await app.inject({ url: "/limited" });
     await app.inject({ url: "/health" });
-    const response = await app.inject({ url: "/health" });
+    const health = await app.inject({ url: "/health" });
 
-    expect(response.statusCode).toBe(200);
+    expect(limited.statusCode).toBe(429);
+    expect(health.statusCode).toBe(200);
+    expect(health.headers).not.toHaveProperty("x-ratelimit-limit");
   });
 
   it("ignores X-Forwarded-For when no proxy is trusted", async () => {

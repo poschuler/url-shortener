@@ -13,14 +13,10 @@ const READINESS_TIMEOUT_MS = 2_000;
 // Resolves when the dependency is usable and rejects with the reason when not.
 export type ReadinessCheck = () => Promise<void>;
 
-export type RateLimitSettings = {
-  max: number;
-  timeWindowMs: number;
-};
-
 export type ServerOptions = {
   logger: Logger;
-  rateLimit: RateLimitSettings;
+  // Shared by every rate limited route; each route sets its own max.
+  rateLimitWindowMs: number;
   // Addresses of the proxies allowed to set X-Forwarded-For. Empty: trust none.
   trustProxy?: string[];
   readinessChecks?: Record<string, ReadinessCheck>;
@@ -31,7 +27,7 @@ export type ServerOptions = {
 // added earlier is silently left without a rate limit.
 export async function buildServer({
   logger,
-  rateLimit: rateLimitSettings,
+  rateLimitWindowMs,
   trustProxy = [],
   readinessChecks = {},
   readinessTimeoutMs = READINESS_TIMEOUT_MS,
@@ -53,11 +49,10 @@ export async function buildServer({
   registerProblemDetails(app);
 
   // In memory, per process: with N replicas a client gets N times the limit.
-  // Off by default; a route opts in with config: { rateLimit: {} }.
+  // Off by default; a route opts in with config: { rateLimit: { max } }.
   await app.register(rateLimit, {
     global: false,
-    max: rateLimitSettings.max,
-    timeWindow: rateLimitSettings.timeWindowMs,
+    timeWindow: rateLimitWindowMs,
   });
 
   app.addHook("onRequest", async (request, reply) => {

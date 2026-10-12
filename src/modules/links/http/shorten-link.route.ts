@@ -8,6 +8,8 @@ import { sendLinkProblem } from "./link-problems.js";
 export type ShortenLinkRouteDeps = {
   shortenLink: ShortenLink;
   publicBaseUrl: string;
+  // Requests per client IP in the server's rate limit window.
+  rateLimitMax: number;
 };
 
 // Only the shape is checked here. Whether the URL is acceptable is a domain
@@ -25,13 +27,13 @@ const ShortenLinkResponse = Type.Object({
 
 export function registerShortenLinkRoute(
   app: FastifyInstance,
-  { shortenLink, publicBaseUrl }: ShortenLinkRouteDeps,
+  { shortenLink, publicBaseUrl, rateLimitMax }: ShortenLinkRouteDeps,
 ): void {
   app.withTypeProvider<TypeBoxTypeProvider>().post(
     "/links",
     {
-      // Uses the server's limit: each call can create a Link.
-      config: { rateLimit: {} },
+      // Strict: each call creates a permanent Link.
+      config: { rateLimit: { max: rateLimitMax } },
       schema: {
         body: ShortenLinkBody,
         response: { 201: ShortenLinkResponse },

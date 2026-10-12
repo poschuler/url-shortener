@@ -24,10 +24,11 @@ describe("createLinksWriteModule", () => {
       shortCodeKey: "000102030405060708090a0b0c0d0e0f",
       publicBaseUrl: "https://short.example",
       maxUrlLength: 2048,
+      rateLimitMax: 100,
     });
     app = await buildServer({
       logger: silentLogger,
-      rateLimit: { max: 100, timeWindowMs: 60_000 },
+      rateLimitWindowMs: 60_000,
       readinessChecks: links.readinessChecks,
     });
     links.registerRoutes(app);

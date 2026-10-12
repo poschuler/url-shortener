@@ -19,16 +19,16 @@ export type ApiConfig = {
     env: "development" | "test" | "production";
     port: number;
     logLevel: LogLevel;
-    publicBaseUrl: string;
-    maxUrlLength: number;
-    shortCodeKey: string;
   };
   http: {
     trustProxy: string[];
-    rateLimit: {
-      max: number;
-      timeWindowMs: number;
-    };
+    rateLimitWindowMs: number;
+  };
+  shorten: {
+    publicBaseUrl: string;
+    maxUrlLength: number;
+    shortCodeKey: string;
+    rateLimitMax: number;
   };
   db: {
     postgres: {
@@ -75,6 +75,7 @@ const ShortenEnv = z.object({
   PUBLIC_BASE_URL: z.url({ protocol: /^https?$/ }),
   MAX_URL_LENGTH: z.coerce.number().int().positive().default(2048),
   SHORT_CODE_KEY: required,
+  SHORTEN_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
 });
 
 // What proxy-addr (used by Fastify) accepts, minus the unsafe forms: "true"
@@ -104,7 +105,6 @@ const HttpEnv = z.object({
         .filter((entry) => entry !== ""),
     )
     .pipe(z.array(trustedProxy)),
-  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
 });
 
@@ -184,16 +184,16 @@ function toWriteApiConfig(vars: z.output<typeof WriteApiEnv>): WriteApiConfig {
       env: vars.NODE_ENV,
       port: vars.PORT,
       logLevel: vars.LOG_LEVEL,
-      publicBaseUrl: vars.PUBLIC_BASE_URL,
-      maxUrlLength: vars.MAX_URL_LENGTH,
-      shortCodeKey: vars.SHORT_CODE_KEY,
     },
     http: {
       trustProxy: vars.TRUST_PROXY,
-      rateLimit: {
-        max: vars.RATE_LIMIT_MAX,
-        timeWindowMs: vars.RATE_LIMIT_WINDOW_MS,
-      },
+      rateLimitWindowMs: vars.RATE_LIMIT_WINDOW_MS,
+    },
+    shorten: {
+      publicBaseUrl: vars.PUBLIC_BASE_URL,
+      maxUrlLength: vars.MAX_URL_LENGTH,
+      shortCodeKey: vars.SHORT_CODE_KEY,
+      rateLimitMax: vars.SHORTEN_RATE_LIMIT_MAX,
     },
     db: toDbConfig(vars),
   };

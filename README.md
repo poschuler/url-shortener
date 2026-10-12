@@ -68,7 +68,7 @@ curl -i localhost:3001/links -H 'content-type: application/json' -d '{"url":"htt
 docker compose down
 ```
 
-`POST /links` is rate limited per client IP (`RATE_LIMIT_MAX` requests every `RATE_LIMIT_WINDOW_MS`). Behind a reverse proxy, list its addresses in `TRUST_PROXY` so the limit applies to the real client instead of the proxy.
+`POST /links` is rate limited per client IP (`SHORTEN_RATE_LIMIT_MAX` requests every `RATE_LIMIT_WINDOW_MS`). Behind a reverse proxy, list its addresses in `TRUST_PROXY` so the limit applies to the real client instead of the proxy.
 
 Postgres and Redis are also published on `127.0.0.1`, so `pnpm dev` can use them from the host. `docker compose down -v` also deletes the Postgres volume. To revert the last migration inside the stack:
 

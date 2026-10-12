@@ -32,9 +32,12 @@ describe("loadApiConfig", () => {
       env: "development",
       port: 3000,
       logLevel: "info",
+    });
+    expect(config.shorten).toEqual({
       publicBaseUrl: "http://localhost:3000",
       maxUrlLength: 2048,
       shortCodeKey: "d448594783eb62319864f9a512e1e051",
+      rateLimitMax: 20,
     });
     expect(config.db.postgres.port).toBe(5432);
     expect(config.redis).toEqual({
@@ -58,13 +61,13 @@ describe("loadWriteApiConfig", () => {
         env: "development",
         port: 3001,
         logLevel: "info",
+      },
+      http: { trustProxy: [], rateLimitWindowMs: 60_000 },
+      shorten: {
         publicBaseUrl: "http://localhost:3000",
         maxUrlLength: 2048,
         shortCodeKey: "d448594783eb62319864f9a512e1e051",
-      },
-      http: {
-        trustProxy: [],
-        rateLimit: { max: 20, timeWindowMs: 60_000 },
+        rateLimitMax: 20,
       },
       db: {
         postgres: {

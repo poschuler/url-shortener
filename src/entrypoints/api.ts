@@ -21,14 +21,12 @@ const db = new Kysely<unknown>({
 const links = createLinksWriteModule({
   db,
   logger,
-  shortCodeKey: config.app.shortCodeKey,
-  publicBaseUrl: config.app.publicBaseUrl,
-  maxUrlLength: config.app.maxUrlLength,
+  ...config.shorten,
 });
 
 const app = await buildServer({
   logger,
-  rateLimit: config.http.rateLimit,
+  rateLimitWindowMs: config.http.rateLimitWindowMs,
   trustProxy: config.http.trustProxy,
   readinessChecks: {
     postgres: async () => {

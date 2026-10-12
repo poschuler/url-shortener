@@ -17,7 +17,7 @@ async function setup(rateLimitMax = 100) {
   const repository = new InMemoryLinkRepository();
   const app = await buildServer({
     logger: pino({ level: "silent" }),
-    rateLimit: { max: rateLimitMax, timeWindowMs: 60_000 },
+    rateLimitWindowMs: 30_000,
   });
   registerShortenLinkRoute(app, {
     shortenLink: new ShortenLink({
@@ -28,6 +28,7 @@ async function setup(rateLimitMax = 100) {
       now: () => NOW,
     }),
     publicBaseUrl: "https://short.example",
+    rateLimitMax,
   });
 
   return { app, repository };
@@ -114,12 +115,12 @@ describe("POST /links", () => {
     const response = await shorten();
 
     expect(response.statusCode).toBe(429);
-    expect(response.headers["retry-after"]).toBe("60");
+    expect(response.headers["retry-after"]).toBe("30");
     expect(response.json()).toEqual({
       type: "about:blank",
       title: "Too Many Requests",
       status: 429,
-      detail: "Rate limit exceeded, retry in 1 minute",
+      detail: "Rate limit exceeded, retry in 30 seconds",
     });
     expect(repository.all()).toHaveLength(2);
   });
