@@ -1,15 +1,23 @@
 import { STATUS_CODES } from "node:http";
 
 import type { FastifyInstance, FastifyReply } from "fastify";
+import { type Static, Type } from "typebox";
 
 // RFC 9457. "about:blank" means the status code says it all: the title is
 // the standard reason phrase and the detail explains this occurrence.
-export type ProblemDetails = {
-  type: string;
-  title: string;
-  status: number;
-  detail?: string;
-};
+// Registered with an $id, so the OpenAPI document defines it once and every
+// error response refers to it.
+const ProblemDetailsSchema = Type.Object(
+  {
+    type: Type.String(),
+    title: Type.String(),
+    status: Type.Integer(),
+    detail: Type.Optional(Type.String()),
+  },
+  { $id: "ProblemDetails" },
+);
+
+export type ProblemDetails = Static<typeof ProblemDetailsSchema>;
 
 export function sendProblem(
   reply: FastifyReply,
@@ -26,7 +34,19 @@ export function sendProblem(
   return reply.code(status).type("application/problem+json").send(problem);
 }
 
+// A route's response for one error status, documented as Problem Details.
+export function problemResponse(description: string) {
+  return {
+    description,
+    content: {
+      "application/problem+json": { schema: Type.Ref("ProblemDetails") },
+    },
+  };
+}
+
 export function registerProblemDetails(app: FastifyInstance): void {
+  app.addSchema(ProblemDetailsSchema);
+
   app.setErrorHandler((error, request, reply) => {
     const status = clientErrorStatus(error);
 

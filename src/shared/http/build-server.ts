@@ -68,6 +68,11 @@ export async function buildServer({
       openapi: "3.1.0",
       info: { title: "URL Shortener", version: "1.0.0" },
     },
+    // Names each shared schema after its $id instead of def-0, def-1...
+    refResolver: {
+      buildLocalReference: (json, _baseUri, _fragment, i) =>
+        typeof json.$id === "string" ? json.$id : `def-${i}`,
+    },
   });
 
   if (docsEnabled) {

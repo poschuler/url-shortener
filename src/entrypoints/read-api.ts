@@ -38,7 +38,6 @@ const app = await buildServer({
   rateLimitWindowMs: config.http.rateLimitWindowMs,
   trustProxy: config.http.trustProxy,
   docsEnabled: config.http.docsEnabled,
-
   readinessChecks: {
     postgres: async () => {
       await sql`select 1`.execute(db);
