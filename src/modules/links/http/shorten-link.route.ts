@@ -30,6 +30,8 @@ export function registerShortenLinkRoute(
   app.withTypeProvider<TypeBoxTypeProvider>().post(
     "/links",
     {
+      // Uses the server's limit: each call can create a Link.
+      config: { rateLimit: {} },
       schema: {
         body: ShortenLinkBody,
         response: { 201: ShortenLinkResponse },

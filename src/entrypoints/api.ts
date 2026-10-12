@@ -26,8 +26,10 @@ const links = createLinksWriteModule({
   maxUrlLength: config.app.maxUrlLength,
 });
 
-const app = buildServer({
+const app = await buildServer({
   logger,
+  rateLimit: config.http.rateLimit,
+  trustProxy: config.http.trustProxy,
   readinessChecks: {
     postgres: async () => {
       await sql`select 1`.execute(db);

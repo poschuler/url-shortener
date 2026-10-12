@@ -13,9 +13,12 @@ const KEY = permutationKeyFromHex("000102030405060708090a0b0c0d0e0f");
 const NOW = new Date("2026-10-11T12:00:00.000Z");
 const CODE = ShortCode.fromNumber(0n, KEY).value;
 
-function setup() {
+async function setup(rateLimitMax = 100) {
   const repository = new InMemoryLinkRepository();
-  const app = buildServer({ logger: pino({ level: "silent" }) });
+  const app = await buildServer({
+    logger: pino({ level: "silent" }),
+    rateLimit: { max: rateLimitMax, timeWindowMs: 60_000 },
+  });
   registerShortenLinkRoute(app, {
     shortenLink: new ShortenLink({
       sequence: new InMemoryNumberSequence(),
@@ -32,7 +35,7 @@ function setup() {
 
 describe("POST /links", () => {
   it("creates a Link and returns its Short URL", async () => {
-    const { app, repository } = setup();
+    const { app, repository } = await setup();
 
     const response = await app.inject({
       method: "POST",
@@ -51,7 +54,7 @@ describe("POST /links", () => {
   });
 
   it("explains which rule an invalid Target URL breaks", async () => {
-    const { app, repository } = setup();
+    const { app, repository } = await setup();
 
     const response = await app.inject({
       method: "POST",
@@ -83,7 +86,7 @@ describe("POST /links", () => {
   ])(
     "rejects a body with %s, without coercing it",
     async (_case, body, detail) => {
-      const { app, repository } = setup();
+      const { app, repository } = await setup();
 
       const response = await app.inject({
         method: "POST",
@@ -96,4 +99,28 @@ describe("POST /links", () => {
       expect(repository.all()).toEqual([]);
     },
   );
+
+  it("limits how many Links a client can create", async () => {
+    const { app, repository } = await setup(2);
+    const shorten = () =>
+      app.inject({
+        method: "POST",
+        url: "/links",
+        body: { url: "https://example.com/a" },
+      });
+
+    await shorten();
+    await shorten();
+    const response = await shorten();
+
+    expect(response.statusCode).toBe(429);
+    expect(response.headers["retry-after"]).toBe("60");
+    expect(response.json()).toEqual({
+      type: "about:blank",
+      title: "Too Many Requests",
+      status: 429,
+      detail: "Rate limit exceeded, retry in 1 minute",
+    });
+    expect(repository.all()).toHaveLength(2);
+  });
 });

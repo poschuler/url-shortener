@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import rateLimit from "@fastify/rate-limit";
 import { TypeBoxValidatorCompiler } from "@fastify/type-provider-typebox";
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from "fastify";
 import type { Logger } from "pino";
@@ -12,29 +13,52 @@ const READINESS_TIMEOUT_MS = 2_000;
 // Resolves when the dependency is usable and rejects with the reason when not.
 export type ReadinessCheck = () => Promise<void>;
 
+export type RateLimitSettings = {
+  max: number;
+  timeWindowMs: number;
+};
+
 export type ServerOptions = {
   logger: Logger;
+  rateLimit: RateLimitSettings;
+  // Addresses of the proxies allowed to set X-Forwarded-For. Empty: trust none.
+  trustProxy?: string[];
   readinessChecks?: Record<string, ReadinessCheck>;
   readinessTimeoutMs?: number;
 };
 
-export function buildServer({
+// Async because plugins must finish loading before routes are added: a route
+// added earlier is silently left without a rate limit.
+export async function buildServer({
   logger,
+  rateLimit: rateLimitSettings,
+  trustProxy = [],
   readinessChecks = {},
   readinessTimeoutMs = READINESS_TIMEOUT_MS,
-}: ServerOptions): FastifyInstance {
+}: ServerOptions): Promise<FastifyInstance> {
   // Widened so Fastify keeps its default logger type in FastifyInstance.
   const loggerInstance: FastifyBaseLogger = logger;
   const app = Fastify({
     loggerInstance,
     requestIdHeader: "x-request-id",
     genReqId: () => randomUUID(),
+    // request.ip, and so the rate limit key, comes from X-Forwarded-For only
+    // when the request arrives through one of these proxies.
+    trustProxy: trustProxy.length > 0 ? trustProxy : false,
   });
 
   // TypeBox checks bodies as they are. Fastify's default (Ajv) coerces them:
   // { "url": 42 } would become "42" and { "url": ["..."] } a plain string.
   app.setValidatorCompiler(TypeBoxValidatorCompiler);
   registerProblemDetails(app);
+
+  // In memory, per process: with N replicas a client gets N times the limit.
+  // Off by default; a route opts in with config: { rateLimit: {} }.
+  await app.register(rateLimit, {
+    global: false,
+    max: rateLimitSettings.max,
+    timeWindow: rateLimitSettings.timeWindowMs,
+  });
 
   app.addHook("onRequest", async (request, reply) => {
     reply.header("x-request-id", request.id);

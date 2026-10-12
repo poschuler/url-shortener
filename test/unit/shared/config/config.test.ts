@@ -62,6 +62,10 @@ describe("loadWriteApiConfig", () => {
         maxUrlLength: 2048,
         shortCodeKey: "d448594783eb62319864f9a512e1e051",
       },
+      http: {
+        trustProxy: [],
+        rateLimit: { max: 20, timeWindowMs: 60_000 },
+      },
       db: {
         postgres: {
           host: "localhost",
@@ -79,6 +83,28 @@ describe("loadWriteApiConfig", () => {
       /PORT[\s\S]*PUBLIC_BASE_URL[\s\S]*SHORT_CODE_KEY/,
     );
   });
+
+  it("reads the trusted proxies as a comma-separated list", () => {
+    const config = loadWriteApiConfig({
+      ...writeApiEnv,
+      TRUST_PROXY: "loopback, 10.0.0.0/8,192.168.1.10",
+    });
+
+    expect(config.http.trustProxy).toEqual([
+      "loopback",
+      "10.0.0.0/8",
+      "192.168.1.10",
+    ]);
+  });
+
+  it.each(["true", "1", "proxy.internal"])(
+    "rejects %s as a trusted proxy",
+    (trustProxy) => {
+      expect(() =>
+        loadWriteApiConfig({ ...writeApiEnv, TRUST_PROXY: trustProxy }),
+      ).toThrow(/TRUST_PROXY/);
+    },
+  );
 });
 
 describe("loadMigrateConfig", () => {

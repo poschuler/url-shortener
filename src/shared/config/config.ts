@@ -23,6 +23,13 @@ export type ApiConfig = {
     maxUrlLength: number;
     shortCodeKey: string;
   };
+  http: {
+    trustProxy: string[];
+    rateLimit: {
+      max: number;
+      timeWindowMs: number;
+    };
+  };
   db: {
     postgres: {
       host: string;
@@ -70,6 +77,37 @@ const ShortenEnv = z.object({
   SHORT_CODE_KEY: required,
 });
 
+// What proxy-addr (used by Fastify) accepts, minus the unsafe forms: "true"
+// trusts any X-Forwarded-For a client sends, and Fastify ignores hop counts.
+const trustedProxy = z.union(
+  [
+    z.enum(["loopback", "linklocal", "uniquelocal"]),
+    z.ipv4(),
+    z.ipv6(),
+    z.cidrv4(),
+    z.cidrv6(),
+  ],
+  {
+    error:
+      "Expected an IP address, a CIDR range, loopback, linklocal or uniquelocal",
+  },
+);
+
+const HttpEnv = z.object({
+  TRUST_PROXY: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter((entry) => entry !== ""),
+    )
+    .pipe(z.array(trustedProxy)),
+  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
+  RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+});
+
 const RedisEnv = z.object({
   REDIS_HOST: required.default("localhost"),
   REDIS_PORT: port.default(6379),
@@ -84,6 +122,7 @@ const WriteApiEnv = z.object({
     .default("development"),
   PORT: port.default(3001),
   ...ShortenEnv.shape,
+  ...HttpEnv.shape,
 });
 
 // The all-in-one API serves the write routes too, so it needs everything
@@ -148,6 +187,13 @@ function toWriteApiConfig(vars: z.output<typeof WriteApiEnv>): WriteApiConfig {
       publicBaseUrl: vars.PUBLIC_BASE_URL,
       maxUrlLength: vars.MAX_URL_LENGTH,
       shortCodeKey: vars.SHORT_CODE_KEY,
+    },
+    http: {
+      trustProxy: vars.TRUST_PROXY,
+      rateLimit: {
+        max: vars.RATE_LIMIT_MAX,
+        timeWindowMs: vars.RATE_LIMIT_WINDOW_MS,
+      },
     },
     db: toDbConfig(vars),
   };
