@@ -5,6 +5,7 @@ import { TypeBoxValidatorCompiler } from "@fastify/type-provider-typebox";
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from "fastify";
 import type { Logger } from "pino";
 
+import { withTimeout } from "../async/with-timeout.js";
 import { registerProblemDetails, sendProblem } from "./problem-details.js";
 
 // Below the 3s timeout of the compose healthcheck, so /ready always answers.
@@ -73,6 +74,7 @@ export async function buildServer({
     const results = await Promise.all(
       Object.entries(readinessChecks).map(async ([name, check]) => {
         try {
+          // A hung dependency must fail the check, not hang the probe.
           await withTimeout(check(), readinessTimeoutMs);
           return null;
         } catch (error) {
@@ -94,21 +96,4 @@ export async function buildServer({
   });
 
   return app;
-}
-
-// A hung dependency must fail the check instead of hanging the probe.
-// The check itself keeps running: Promise.race cannot cancel it.
-async function withTimeout(promise: Promise<void>, ms: number): Promise<void> {
-  let timer: NodeJS.Timeout | undefined;
-  const timeout = new Promise<never>((_resolve, reject) => {
-    timer = setTimeout(() => {
-      reject(new Error(`Timed out after ${ms} ms`));
-    }, ms);
-  });
-
-  try {
-    await Promise.race([promise, timeout]);
-  } finally {
-    clearTimeout(timer);
-  }
 }
