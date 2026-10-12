@@ -19,19 +19,21 @@ services:
       postgres:
         condition: service_healthy
 
-  api:
+  # The read side on its own: Resolve only. It degrades to Postgres when
+  # Redis is down, so it only waits for Redis to start, not to be healthy.
+  read-api:
     image: url-shortener
     build: .
+    command: ["node", "--enable-source-maps", "dist/entrypoints/read-api.js"]
     environment:
       NODE_ENV: production
-      PORT: 3000
+      PORT: 3002
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL in .env}
-      MAX_URL_LENGTH: ${MAX_URL_LENGTH:-2048}
-      SHORT_CODE_KEY: ${SHORT_CODE_KEY:?set SHORT_CODE_KEY in .env}
       TRUST_PROXY: ${TRUST_PROXY:-}
-      SHORTEN_RATE_LIMIT_MAX: ${SHORTEN_RATE_LIMIT_MAX:-20}
+      RESOLVE_RATE_LIMIT_MAX: ${RESOLVE_RATE_LIMIT_MAX:-300}
       RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
+      CACHE_TTL_SECONDS: ${CACHE_TTL_SECONDS:-86400}
+      CACHE_NEGATIVE_TTL_SECONDS: ${CACHE_NEGATIVE_TTL_SECONDS:-60}
       PG_HOST: postgres
       PG_PORT: 5432
       PG_USER: ${PG_USER:?set PG_USER in .env}
@@ -41,20 +43,20 @@ services:
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
     ports:
-      - "${PORT:-3000}:3000"
+      - "3002:3002"
     depends_on:
       postgres:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
       redis:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test:
         - CMD
         - node
         - -e
-        - "fetch('http://127.0.0.1:3000/ready').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+        - "fetch('http://127.0.0.1:3002/ready').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
       interval: 10s
       timeout: 3s
       retries: 3
@@ -116,7 +118,9 @@ services:
 
   redis:
     image: redis:7-alpine
-    # A cache only: no snapshots, no append-only file.
+    # A cache only: no snapshots, no append-only file. When full, it evicts
+    # the least recently used keys, so a long scan of missing codes cannot
+    # fill it with negative entries.
     command:
       - redis-server
       - --requirepass
@@ -125,6 +129,10 @@ services:
       - ""
       - --appendonly
       - "no"
+      - --maxmemory
+      - 64mb
+      - --maxmemory-policy
+      - allkeys-lru
     environment:
       REDISCLI_AUTH: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
     ports:

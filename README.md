@@ -4,14 +4,14 @@
 
 A URL shortener built with Node.js, TypeScript and Fastify: a modular monolith with hexagonal architecture, used as a reference project for posts on [poschuler.com](https://poschuler.com).
 
-> **Status: work in progress.** Shorten works end to end: `POST /links` stores Links in Postgres. Resolve and its Redis cache are not there yet.
+> **Status: work in progress.** Shorten and Resolve work end to end: `POST /links` stores Links in Postgres, and `GET /:code` redirects to the Target URL through a Redis cache.
 
 ## What it does
 
 - **Shorten**: turns a Target URL into a Short URL with a seven-character, case-sensitive Short Code.
 - **Resolve**: redirects a Visitor who follows a Short URL to its Target URL.
 
-Writes and reads run as separate processes built from the same codebase: `write-api` for Shorten and, once Resolve is in place, `read-api` ([ADR-0014](docs/adr/0014-writes-and-reads-run-as-separate-processes-from-one-codebase.md)). For development, `api` runs everything in one process.
+Writes and reads run as separate processes built from the same codebase: `write-api` for Shorten and `read-api` for Resolve ([ADR-0014](docs/adr/0014-writes-and-reads-run-as-separate-processes-from-one-codebase.md)). For development, `api` runs everything in one process.
 
 ## Documentation
 
@@ -40,7 +40,7 @@ pnpm check
 | `pnpm test`                         | Runs the unit tests once                                                                 |
 | `pnpm test:watch`                   | Runs the unit tests on every change                                                      |
 | `pnpm test:coverage`                | Runs the unit tests with a coverage report in `coverage/`                                |
-| `pnpm test:integration`             | Runs the integration tests against Postgres in a container (needs Docker)                |
+| `pnpm test:integration`             | Runs the integration tests against Postgres and Redis in containers (needs Docker)       |
 | `pnpm test:e2e`                     | Runs the end-to-end tests against the running compose stack                              |
 | `pnpm lint` / `pnpm lint:fix`       | Lints with oxlint, optionally fixing what it can                                         |
 | `pnpm format` / `pnpm format:check` | Formats with oxfmt, or only checks                                                       |
@@ -56,27 +56,33 @@ pnpm check
 
 `compose.yaml` runs two processes from the same image, both with health checks, plus Postgres 17 and Redis 7. It reads its values from `.env`:
 
-- `api` on port 3000: every route in one process.
 - `write-api` on port 3001: Shorten only, without Redis.
+- `read-api` on port 3002: Resolve only. It caches Target URLs in Redis and falls back to Postgres when Redis is down, so its readiness check does not depend on Redis.
+
+`PUBLIC_BASE_URL` in `.env.example` points to `read-api`, so the Short URLs that `write-api` returns can be followed.
 
 A one-off `migrate` service applies the database migrations first; the APIs start only if it succeeds:
 
 ```bash
-docker compose up -d --build --wait
-curl -i localhost:3001/ready
+docker compose up -d --build --wait --remove-orphans
 curl -i localhost:3001/links -H 'content-type: application/json' -d '{"url":"https://example.com"}'
+curl -i localhost:3002/<code>   # the code from the response: 302 to https://example.com
 docker compose down
 ```
 
-`POST /links` is rate limited per client IP (`SHORTEN_RATE_LIMIT_MAX` requests every `RATE_LIMIT_WINDOW_MS`). Behind a reverse proxy, list its addresses in `TRUST_PROXY` so the limit applies to the real client instead of the proxy.
+`--remove-orphans` removes containers of services that are no longer in `compose.yaml`, such as an older all-in-one `api`.
 
-Postgres and Redis are also published on `127.0.0.1`, so `pnpm dev` can use them from the host. `docker compose down -v` also deletes the Postgres volume. To revert the last migration inside the stack:
+Both routes are rate limited per client IP, each with its own maximum in the same window of `RATE_LIMIT_WINDOW_MS`: `SHORTEN_RATE_LIMIT_MAX` for `POST /links` and a more generous `RESOLVE_RATE_LIMIT_MAX` for `GET /:code`. Behind a reverse proxy, list its addresses in `TRUST_PROXY` so the limit applies to the real client instead of the proxy.
+
+Redis is a cache only: it keeps no data on disk and, once it reaches its memory limit, evicts the least recently used keys. Target URLs stay cached for `CACHE_TTL_SECONDS`, and Short Codes without a Link for `CACHE_NEGATIVE_TTL_SECONDS`.
+
+Postgres and Redis are also published on `127.0.0.1`, so `pnpm dev` can use them from the host. The all-in-one `api` listens on port 3000, so set `PUBLIC_BASE_URL=http://localhost:3000` in `.env` to follow its Short URLs. `docker compose down -v` also deletes the Postgres volume. To revert the last migration inside the stack:
 
 ```bash
 docker compose run --rm migrate node dist/entrypoints/migrate.js down
 ```
 
-The `Dockerfile` builds a production image that runs as the non-root `node` user. By default it starts the all-in-one `api`; the compose stack overrides the command for `migrate` and `write-api`. To run it on its own:
+The `Dockerfile` builds a production image that runs as the non-root `node` user. By default it starts the all-in-one `api`; the compose stack overrides the command for `migrate`, `write-api` and `read-api`. To run it on its own:
 
 ```bash
 docker build -t url-shortener .
