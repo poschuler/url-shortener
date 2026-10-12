@@ -23,6 +23,7 @@
     "test:watch": "vitest --project unit",
     "test:coverage": "vitest run --project unit --coverage",
     "test:integration": "vitest run --project integration",
+    "test:e2e": "vitest run --project e2e",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "format": "oxfmt",

@@ -47,12 +47,25 @@ jobs:
       # Testcontainers starts Postgres with the runner's Docker.
       - run: pnpm test:integration
 
-  docker:
-    name: Docker image
+  e2e:
+    name: Docker and end-to-end tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - run: docker build --check .
-      - run: docker build --tag url-shortener .
+      # The compose stack builds the image and reads its values from .env.
+      - run: cp .env.example .env
+      - run: docker compose up --detach --build --wait
+      - run: pnpm test:e2e
+      - if: failure()
+        run: docker compose logs
+      - if: always()
+        run: docker compose down --volumes

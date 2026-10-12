@@ -41,6 +41,7 @@ pnpm check
 | `pnpm test:watch`                   | Runs the unit tests on every change                                                      |
 | `pnpm test:coverage`                | Runs the unit tests with a coverage report in `coverage/`                                |
 | `pnpm test:integration`             | Runs the integration tests against Postgres in a container (needs Docker)                |
+| `pnpm test:e2e`                     | Runs the end-to-end tests against the running compose stack                              |
 | `pnpm lint` / `pnpm lint:fix`       | Lints with oxlint, optionally fixing what it can                                         |
 | `pnpm format` / `pnpm format:check` | Formats with oxfmt, or only checks                                                       |
 | `pnpm typecheck`                    | Type checks sources, tests and config files                                              |
@@ -87,7 +88,7 @@ curl -i localhost:3000/health
 
 ## Continuous integration
 
-GitHub Actions runs `pnpm check`, the integration tests and the Docker image build on every push to `main` and on every pull request (`.github/workflows/ci.yml`).
+GitHub Actions runs `pnpm check`, the integration tests, and the end-to-end tests against the compose stack on every push to `main` and on every pull request (`.github/workflows/ci.yml`).
 
 ## Project layout
 

@@ -17,6 +17,13 @@ export default defineConfig({
           globalSetup: ["test/integration/support/global-setup.ts"],
         },
       },
+      {
+        // Needs the compose stack running: docker compose up -d --build --wait
+        test: {
+          name: "e2e",
+          include: ["test/e2e/**/*.test.ts"],
+        },
+      },
     ],
     coverage: {
       provider: "v8",
