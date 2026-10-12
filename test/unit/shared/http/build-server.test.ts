@@ -142,4 +142,36 @@ describe("buildServer", () => {
 
     expect(response.body).toBe("203.0.113.7");
   });
+
+  it("serves no docs by default", async () => {
+    const app = await buildServer(options);
+
+    const response = await app.inject({ url: "/docs/openapi.json" });
+
+    expect(response.statusCode).toBe(404);
+  });
+
+  it("serves the API reference under /docs when enabled", async () => {
+    const app = await buildServer({ ...options, docsEnabled: true });
+
+    const response = await app.inject({ url: "/docs/" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toBe("text/html; charset=utf-8");
+  });
+
+  it("documents the routes but not the probes", async () => {
+    const app = await buildServer({ ...options, docsEnabled: true });
+    app.get("/documented", (_, reply) => reply.send("ok"));
+
+    const response = await app.inject({ url: "/docs/openapi.json" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      openapi: "3.1.0",
+      paths: { "/documented": { get: {} } },
+    });
+    expect(response.json()).not.toHaveProperty(["paths", "/health"]);
+    expect(response.json()).not.toHaveProperty(["paths", "/ready"]);
+  });
 });

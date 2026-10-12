@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 
 import rateLimit from "@fastify/rate-limit";
+import swagger from "@fastify/swagger";
 import { TypeBoxValidatorCompiler } from "@fastify/type-provider-typebox";
+import scalar from "@scalar/fastify-api-reference";
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from "fastify";
 import type { Logger } from "pino";
 
@@ -20,6 +22,8 @@ export type ServerOptions = {
   rateLimitWindowMs: number;
   // Addresses of the proxies allowed to set X-Forwarded-For. Empty: trust none.
   trustProxy?: string[];
+  // Serves the API reference (Scalar) and the OpenAPI document under /docs.
+  docsEnabled?: boolean;
   readinessChecks?: Record<string, ReadinessCheck>;
   readinessTimeoutMs?: number;
 };
@@ -30,6 +34,7 @@ export async function buildServer({
   logger,
   rateLimitWindowMs,
   trustProxy = [],
+  docsEnabled = false,
   readinessChecks = {},
   readinessTimeoutMs = READINESS_TIMEOUT_MS,
 }: ServerOptions): Promise<FastifyInstance> {
@@ -56,15 +61,30 @@ export async function buildServer({
     timeWindow: rateLimitWindowMs,
   });
 
+  // Collects the schema of every route added from here on. Always on, so the
+  // OpenAPI document can be built even where /docs is not served.
+  await app.register(swagger, {
+    openapi: {
+      openapi: "3.1.0",
+      info: { title: "URL Shortener", version: "1.0.0" },
+    },
+  });
+
+  if (docsEnabled) {
+    await app.register(scalar, { routePrefix: "/docs" });
+  }
+
   app.addHook("onRequest", async (request, reply) => {
     reply.header("x-request-id", request.id);
   });
 
   // Probes hit these every few seconds: log them only when something is wrong.
   // A route's logLevel replaces the server's, so never make it chattier.
-  const probe = logger.isLevelEnabled("warn")
-    ? ({ logLevel: "warn" } as const)
-    : {};
+  // They are for the orchestrator, not for API clients: left out of the docs.
+  const probe = {
+    schema: { hide: true },
+    ...(logger.isLevelEnabled("warn") ? ({ logLevel: "warn" } as const) : {}),
+  };
 
   // Liveness: the process is up and serving requests.
   app.get("/health", probe, async () => ({ status: "ok" }));

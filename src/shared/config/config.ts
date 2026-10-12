@@ -23,6 +23,7 @@ export type ApiConfig = {
   http: {
     trustProxy: string[];
     rateLimitWindowMs: number;
+    docsEnabled: boolean;
   };
   shorten: {
     publicBaseUrl: string;
@@ -116,6 +117,8 @@ const HttpEnv = z.object({
     )
     .pipe(z.array(trustedProxy)),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+  // Off unless asked for: production does not publish its API reference.
+  DOCS_ENABLED: z.stringbool().default(false),
 });
 
 const RedisEnv = z.object({
@@ -227,6 +230,7 @@ function toServerConfig(
     http: {
       trustProxy: vars.TRUST_PROXY,
       rateLimitWindowMs: vars.RATE_LIMIT_WINDOW_MS,
+      docsEnabled: vars.DOCS_ENABLED,
     },
     db: toDbConfig(vars),
   };

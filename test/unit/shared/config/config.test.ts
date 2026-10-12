@@ -73,7 +73,8 @@ describe("loadWriteApiConfig", () => {
         port: 3001,
         logLevel: "info",
       },
-      http: { trustProxy: [], rateLimitWindowMs: 60_000 },
+      http: { trustProxy: [], rateLimitWindowMs: 60_000, docsEnabled: false },
+
       shorten: {
         publicBaseUrl: "http://localhost:3000",
         maxUrlLength: 2048,
@@ -111,6 +112,26 @@ describe("loadWriteApiConfig", () => {
     ]);
   });
 
+  it.each([
+    ["true", true],
+    ["1", true],
+    ["false", false],
+    ["0", false],
+  ])("reads DOCS_ENABLED=%s as %s", (docsEnabled, expected) => {
+    const config = loadWriteApiConfig({
+      ...writeApiEnv,
+      DOCS_ENABLED: docsEnabled,
+    });
+
+    expect(config.http.docsEnabled).toBe(expected);
+  });
+
+  it("rejects a DOCS_ENABLED that is not a boolean", () => {
+    expect(() =>
+      loadWriteApiConfig({ ...writeApiEnv, DOCS_ENABLED: "maybe" }),
+    ).toThrow(/DOCS_ENABLED/);
+  });
+
   it.each(["true", "1", "proxy.internal"])(
     "rejects %s as a trusted proxy",
     (trustProxy) => {
@@ -129,7 +150,8 @@ describe("loadReadApiConfig", () => {
         port: 3002,
         logLevel: "info",
       },
-      http: { trustProxy: [], rateLimitWindowMs: 60_000 },
+      http: { trustProxy: [], rateLimitWindowMs: 60_000, docsEnabled: false },
+
       redis: {
         host: "localhost",
         port: 6379,
