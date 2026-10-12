@@ -1,7 +1,4 @@
-import {
-  RedisContainer,
-  type StartedRedisContainer,
-} from "@testcontainers/redis";
+import type { StartedRedisContainer } from "@testcontainers/redis";
 import {
   afterAll,
   afterEach,
@@ -26,6 +23,10 @@ import {
   describeLinkCacheContract,
 } from "../../../../../contract/modules/links/infrastructure/link-cache.contract.js";
 import { silentLogger } from "../../../../support/postgres.js";
+import {
+  redisConfigOf,
+  startRedisContainer,
+} from "../../../../support/redis.js";
 
 const options: RedisLinkCacheOptions = {
   ttlSeconds: 86_400,
@@ -39,9 +40,7 @@ describe("RedisLinkCache", () => {
 
   // One container for this file. Every test starts with an empty database.
   beforeAll(async () => {
-    container = await new RedisContainer("redis:7-alpine")
-      .withPassword("test")
-      .start();
+    container = await startRedisContainer();
   });
 
   afterAll(async () => {
@@ -49,14 +48,7 @@ describe("RedisLinkCache", () => {
   });
 
   beforeEach(async () => {
-    redis = createRedisClient(
-      {
-        host: container.getHost(),
-        port: container.getPort(),
-        password: container.getPassword(),
-      },
-      silentLogger,
-    );
+    redis = createRedisClient(redisConfigOf(container), silentLogger);
     await redis.connect();
     await redis.flushDb();
   });

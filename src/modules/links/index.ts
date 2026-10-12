@@ -3,18 +3,30 @@ import type { Kysely } from "kysely";
 import type { BaseLogger } from "pino";
 
 import type { ReadinessCheck } from "../../shared/http/build-server.js";
+import type { RedisClient } from "../../shared/redis/create-redis-client.js";
+import { ResolveLink } from "./application/resolve-link.js";
 import { ShortenLink } from "./application/shorten-link.js";
 import { permutationKeyFromHex } from "./domain/short-code-permutation.js";
+import { registerResolveLinkRoute } from "./http/resolve-link.route.js";
 import { registerShortenLinkRoute } from "./http/shorten-link.route.js";
 import type { LinksDatabase } from "./infrastructure/postgres/links-database.js";
 import { PostgresLinkRepository } from "./infrastructure/postgres/postgres-link-repository.js";
 import { PostgresRangeAllocator } from "./infrastructure/postgres/postgres-range-allocator.js";
+import { PostgresTargetUrlLookup } from "./infrastructure/postgres/postgres-target-url-lookup.js";
 import { RangedNumberSequence } from "./infrastructure/ranges/ranged-number-sequence.js";
+import { RedisLinkCache } from "./infrastructure/redis/redis-link-cache.js";
 
 // Fixed tuning, not configuration: the range size itself is set by the
 // migration. Ask for the next range once 20% of the current one is left.
 const RANGE_REFILL_THRESHOLD = 0.2;
 const RANGE_RETRY = { maxAttempts: 3, baseDelayMs: 50 };
+// A cache read takes about a millisecond. Past this, Postgres answers.
+const CACHE_TIMEOUT_MS = 200;
+
+export type LinksModule = {
+  readinessChecks: Record<string, ReadinessCheck>;
+  registerRoutes: (app: FastifyInstance) => void;
+};
 
 export type LinksWriteModuleDeps = {
   db: Kysely<unknown>;
@@ -25,16 +37,11 @@ export type LinksWriteModuleDeps = {
   rateLimitMax: number;
 };
 
-export type LinksWriteModule = {
-  readinessChecks: Record<string, ReadinessCheck>;
-  registerRoutes: (app: FastifyInstance) => void;
-};
-
 // Wires the Shorten side of the module. It does not know which process it
 // runs in: write-api and the all-in-one api compose it the same way.
 export function createLinksWriteModule(
   deps: LinksWriteModuleDeps,
-): LinksWriteModule {
+): LinksModule {
   const db = deps.db.$extendTables<LinksDatabase>();
 
   const sequence = new RangedNumberSequence({
@@ -62,6 +69,40 @@ export function createLinksWriteModule(
       registerShortenLinkRoute(app, {
         shortenLink,
         publicBaseUrl: deps.publicBaseUrl,
+        rateLimitMax: deps.rateLimitMax,
+      });
+    },
+  };
+}
+
+export type LinksReadModuleDeps = {
+  db: Kysely<unknown>;
+  redis: RedisClient;
+  logger: BaseLogger;
+  rateLimitMax: number;
+  cacheTtlSeconds: number;
+  cacheNegativeTtlSeconds: number;
+};
+
+// Wires the Resolve side of the module: read-api and the all-in-one api
+// compose it the same way.
+export function createLinksReadModule(deps: LinksReadModuleDeps): LinksModule {
+  const resolveLink = new ResolveLink({
+    cache: new RedisLinkCache(deps.redis, deps.logger, {
+      ttlSeconds: deps.cacheTtlSeconds,
+      negativeTtlSeconds: deps.cacheNegativeTtlSeconds,
+      timeoutMs: CACHE_TIMEOUT_MS,
+    }),
+    lookup: new PostgresTargetUrlLookup(deps.db.$extendTables<LinksDatabase>()),
+  });
+
+  return {
+    // No Redis check on purpose: without the cache, Resolve still works
+    // from Postgres, so the process stays ready.
+    readinessChecks: {},
+    registerRoutes: (app) => {
+      registerResolveLinkRoute(app, {
+        resolveLink,
         rateLimitMax: deps.rateLimitMax,
       });
     },

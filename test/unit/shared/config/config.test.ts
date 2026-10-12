@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   loadApiConfig,
   loadMigrateConfig,
+  loadReadApiConfig,
   loadWriteApiConfig,
 } from "#src/shared/config/config.js";
 
@@ -19,9 +20,14 @@ const writeApiEnv = {
   SHORT_CODE_KEY: "d448594783eb62319864f9a512e1e051",
 };
 
+const readApiEnv = {
+  ...postgresEnv,
+  REDIS_PASSWORD: "secret",
+};
+
 const apiEnv = {
   ...writeApiEnv,
-  REDIS_PASSWORD: "secret",
+  ...readApiEnv,
 };
 
 describe("loadApiConfig", () => {
@@ -44,6 +50,11 @@ describe("loadApiConfig", () => {
       host: "localhost",
       port: 6379,
       password: "secret",
+    });
+    expect(config.resolve).toEqual({
+      rateLimitMax: 300,
+      cacheTtlSeconds: 86_400,
+      cacheNegativeTtlSeconds: 60,
     });
   });
 
@@ -108,6 +119,44 @@ describe("loadWriteApiConfig", () => {
       ).toThrow(/TRUST_PROXY/);
     },
   );
+});
+
+describe("loadReadApiConfig", () => {
+  it("needs no Shorten variables and listens on 3002 by default", () => {
+    expect(loadReadApiConfig(readApiEnv)).toEqual({
+      app: {
+        env: "development",
+        port: 3002,
+        logLevel: "info",
+      },
+      http: { trustProxy: [], rateLimitWindowMs: 60_000 },
+      redis: {
+        host: "localhost",
+        port: 6379,
+        password: "secret",
+      },
+      resolve: {
+        rateLimitMax: 300,
+        cacheTtlSeconds: 86_400,
+        cacheNegativeTtlSeconds: 60,
+      },
+      db: {
+        postgres: {
+          host: "localhost",
+          port: 5432,
+          user: "postgres",
+          password: "secret",
+          dbName: "url_shortener",
+        },
+      },
+    });
+  });
+
+  it("names every invalid variable", () => {
+    expect(() =>
+      loadReadApiConfig({ ...postgresEnv, CACHE_TTL_SECONDS: "0" }),
+    ).toThrow(/REDIS_PASSWORD[\s\S]*CACHE_TTL_SECONDS/);
+  });
 });
 
 describe("loadMigrateConfig", () => {

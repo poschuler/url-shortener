@@ -44,10 +44,20 @@ export type ApiConfig = {
     port: number;
     password: string;
   };
+  resolve: {
+    rateLimitMax: number;
+    cacheTtlSeconds: number;
+    cacheNegativeTtlSeconds: number;
+  };
 };
 
 // The write API does not read or cache Links, so it needs no Redis.
-export type WriteApiConfig = Omit<ApiConfig, "redis">;
+export type WriteApiConfig = Omit<ApiConfig, "redis" | "resolve">;
+
+// The read API creates no Links: no Short Code key, no public base URL.
+export type ReadApiConfig = Omit<ApiConfig, "shorten">;
+
+type ServerConfig = Pick<ApiConfig, "app" | "http" | "db">;
 
 export type MigrateConfig = {
   app: Pick<ApiConfig["app"], "logLevel">;
@@ -114,22 +124,39 @@ const RedisEnv = z.object({
   REDIS_PASSWORD: required,
 });
 
-const WriteApiEnv = z.object({
+const ResolveEnv = z.object({
+  RESOLVE_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
+  CACHE_TTL_SECONDS: z.coerce.number().int().positive().default(86_400),
+  CACHE_NEGATIVE_TTL_SECONDS: z.coerce.number().int().positive().default(60),
+});
+
+// What every API process needs, whatever routes it serves.
+const ServerEnv = z.object({
   ...LoggingEnv.shape,
   ...PostgresEnv.shape,
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
-  PORT: port.default(3001),
-  ...ShortenEnv.shape,
   ...HttpEnv.shape,
 });
 
-// The all-in-one API serves the write routes too, so it needs everything
-// the write API needs, plus Redis.
+const WriteApiEnv = z.object({
+  ...ServerEnv.shape,
+  PORT: port.default(3001),
+  ...ShortenEnv.shape,
+});
+
+const ReadApiEnv = z.object({
+  ...ServerEnv.shape,
+  PORT: port.default(3002),
+  ...RedisEnv.shape,
+  ...ResolveEnv.shape,
+});
+
+// The all-in-one API serves both sides, so it needs everything.
 const ApiEnv = z.object({
   ...WriteApiEnv.shape,
-  ...RedisEnv.shape,
+  ...ReadApiEnv.shape,
   PORT: port.default(3000),
 });
 
@@ -142,19 +169,29 @@ export function loadApiConfig(env: EnvSource = process.env): ApiConfig {
   const vars = parseEnv(ApiEnv, env);
 
   return {
-    ...toWriteApiConfig(vars),
-    redis: {
-      host: vars.REDIS_HOST,
-      port: vars.REDIS_PORT,
-      password: vars.REDIS_PASSWORD,
-    },
+    ...toServerConfig(vars),
+    shorten: toShortenConfig(vars),
+    redis: toRedisConfig(vars),
+    resolve: toResolveConfig(vars),
   };
 }
 
 export function loadWriteApiConfig(
   env: EnvSource = process.env,
 ): WriteApiConfig {
-  return toWriteApiConfig(parseEnv(WriteApiEnv, env));
+  const vars = parseEnv(WriteApiEnv, env);
+
+  return { ...toServerConfig(vars), shorten: toShortenConfig(vars) };
+}
+
+export function loadReadApiConfig(env: EnvSource = process.env): ReadApiConfig {
+  const vars = parseEnv(ReadApiEnv, env);
+
+  return {
+    ...toServerConfig(vars),
+    redis: toRedisConfig(vars),
+    resolve: toResolveConfig(vars),
+  };
 }
 
 export function loadMigrateConfig(env: EnvSource = process.env): MigrateConfig {
@@ -178,7 +215,9 @@ function parseEnv<T extends z.ZodType>(schema: T, env: EnvSource): z.output<T> {
   return result.data;
 }
 
-function toWriteApiConfig(vars: z.output<typeof WriteApiEnv>): WriteApiConfig {
+function toServerConfig(
+  vars: z.output<typeof ServerEnv> & { PORT: number },
+): ServerConfig {
   return {
     app: {
       env: vars.NODE_ENV,
@@ -189,13 +228,36 @@ function toWriteApiConfig(vars: z.output<typeof WriteApiEnv>): WriteApiConfig {
       trustProxy: vars.TRUST_PROXY,
       rateLimitWindowMs: vars.RATE_LIMIT_WINDOW_MS,
     },
-    shorten: {
-      publicBaseUrl: vars.PUBLIC_BASE_URL,
-      maxUrlLength: vars.MAX_URL_LENGTH,
-      shortCodeKey: vars.SHORT_CODE_KEY,
-      rateLimitMax: vars.SHORTEN_RATE_LIMIT_MAX,
-    },
     db: toDbConfig(vars),
+  };
+}
+
+function toShortenConfig(
+  vars: z.output<typeof ShortenEnv>,
+): ApiConfig["shorten"] {
+  return {
+    publicBaseUrl: vars.PUBLIC_BASE_URL,
+    maxUrlLength: vars.MAX_URL_LENGTH,
+    shortCodeKey: vars.SHORT_CODE_KEY,
+    rateLimitMax: vars.SHORTEN_RATE_LIMIT_MAX,
+  };
+}
+
+function toRedisConfig(vars: z.output<typeof RedisEnv>): ApiConfig["redis"] {
+  return {
+    host: vars.REDIS_HOST,
+    port: vars.REDIS_PORT,
+    password: vars.REDIS_PASSWORD,
+  };
+}
+
+function toResolveConfig(
+  vars: z.output<typeof ResolveEnv>,
+): ApiConfig["resolve"] {
+  return {
+    rateLimitMax: vars.RESOLVE_RATE_LIMIT_MAX,
+    cacheTtlSeconds: vars.CACHE_TTL_SECONDS,
+    cacheNegativeTtlSeconds: vars.CACHE_NEGATIVE_TTL_SECONDS,
   };
 }
 
