@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { TypeBoxValidatorCompiler } from "@fastify/type-provider-typebox";
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from "fastify";
 import type { Logger } from "pino";
 
@@ -30,6 +31,9 @@ export function buildServer({
     genReqId: () => randomUUID(),
   });
 
+  // TypeBox checks bodies as they are. Fastify's default (Ajv) coerces them:
+  // { "url": 42 } would become "42" and { "url": ["..."] } a plain string.
+  app.setValidatorCompiler(TypeBoxValidatorCompiler);
   registerProblemDetails(app);
 
   app.addHook("onRequest", async (request, reply) => {
