@@ -3,7 +3,7 @@
 name: url-shortener
 
 services:
-  # Applies the database migrations, then exits. The API waits for it.
+  # Applies the database migrations, then exits. The APIs wait for it.
   migrate:
     image: url-shortener
     build: .
@@ -29,6 +29,9 @@ services:
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL in .env}
       MAX_URL_LENGTH: ${MAX_URL_LENGTH:-2048}
       SHORT_CODE_KEY: ${SHORT_CODE_KEY:?set SHORT_CODE_KEY in .env}
+      TRUST_PROXY: ${TRUST_PROXY:-}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-20}
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
       PG_HOST: postgres
       PG_PORT: 5432
       PG_USER: ${PG_USER:?set PG_USER in .env}
@@ -52,6 +55,44 @@ services:
         - node
         - -e
         - "fetch('http://127.0.0.1:3000/ready').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # The write side on its own: Shorten only, no Redis.
+  write-api:
+    image: url-shortener
+    build: .
+    command: ["node", "--enable-source-maps", "dist/entrypoints/write-api.js"]
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL in .env}
+      MAX_URL_LENGTH: ${MAX_URL_LENGTH:-2048}
+      SHORT_CODE_KEY: ${SHORT_CODE_KEY:?set SHORT_CODE_KEY in .env}
+      TRUST_PROXY: ${TRUST_PROXY:-}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-20}
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
+      PG_HOST: postgres
+      PG_PORT: 5432
+      PG_USER: ${PG_USER:?set PG_USER in .env}
+      PG_PASSWORD: ${PG_PASSWORD:?set PG_PASSWORD in .env}
+      PG_NAME: ${PG_NAME:?set PG_NAME in .env}
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3001/ready').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
       interval: 10s
       timeout: 3s
       retries: 3

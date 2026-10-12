@@ -4,7 +4,7 @@
 
 A URL shortener built with Node.js, TypeScript and Fastify: a modular monolith with hexagonal architecture, used as a reference project for posts on [poschuler.com](https://poschuler.com).
 
-> **Status: work in progress.** The domain layer and the HTTP server skeleton (health and readiness probes) are in place. The Link APIs and persistence are not there yet.
+> **Status: work in progress.** Shorten works end to end: `POST /links` stores Links in Postgres. Resolve and its Redis cache are not there yet.
 
 ## What it does
 
@@ -53,13 +53,21 @@ pnpm check
 
 ## Docker
 
-`compose.yaml` runs the API with Postgres 17 and Redis 7, all with health checks. It reads its values from `.env`. A one-off `migrate` service applies the database migrations first; the API starts only if it succeeds:
+`compose.yaml` runs two processes from the same image, both with health checks, plus Postgres 17 and Redis 7. It reads its values from `.env`:
+
+- `api` on port 3000: every route in one process.
+- `write-api` on port 3001: Shorten only, without Redis.
+
+A one-off `migrate` service applies the database migrations first; the APIs start only if it succeeds:
 
 ```bash
 docker compose up -d --build --wait
-curl -i localhost:3000/ready
+curl -i localhost:3001/ready
+curl -i localhost:3001/links -H 'content-type: application/json' -d '{"url":"https://example.com"}'
 docker compose down
 ```
+
+`POST /links` is rate limited per client IP (`RATE_LIMIT_MAX` requests every `RATE_LIMIT_WINDOW_MS`). Behind a reverse proxy, list its addresses in `TRUST_PROXY` so the limit applies to the real client instead of the proxy.
 
 Postgres and Redis are also published on `127.0.0.1`, so `pnpm dev` can use them from the host. `docker compose down -v` also deletes the Postgres volume. To revert the last migration inside the stack:
 
