@@ -1,0 +1,183 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "URL Shortener",
+    "version": "1.0.0"
+  },
+  "components": {
+    "schemas": {
+      "ProblemDetails": {
+        "type": "object",
+        "required": [
+          "type",
+          "title",
+          "status"
+        ],
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/links": {
+      "post": {
+        "operationId": "shortenLink",
+        "summary": "Shorten a URL",
+        "description": "Creates a new Link on every call, even for a URL already shortened.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "url"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "description": "The Target URL: an absolute http or https URL",
+                    "examples": [
+                      "https://example.com/a/long/path?with=query"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The Link was created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "shortUrl",
+                    "url",
+                    "createdAt"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "The Short Code"
+                    },
+                    "shortUrl": {
+                      "type": "string",
+                      "description": "The Short URL to share"
+                    },
+                    "url": {
+                      "type": "string",
+                      "description": "The Target URL, normalized"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "description": "The Link was created"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body or the Target URL is not valid",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests from this client",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/{code}": {
+      "get": {
+        "operationId": "resolveLink",
+        "summary": "Resolve a Short Code",
+        "description": "Redirects the Visitor to the Target URL of the Link.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "example": "abc1234",
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "description": "The Short Code"
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirects to the Target URL",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "The Target URL"
+              }
+            }
+          },
+          "400": {
+            "description": "The Short Code is not valid",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No Link has this Short Code",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests from this client",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
