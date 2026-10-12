@@ -11,7 +11,7 @@ A URL shortener built with Node.js, TypeScript and Fastify: a modular monolith w
 - **Shorten**: turns a Target URL into a Short URL with a seven-character, case-sensitive Short Code.
 - **Resolve**: redirects a Visitor who follows a Short URL to its Target URL.
 
-Writes and reads run as separate processes (`write-api` and `read-api`) built from the same codebase.
+Writes and reads run as separate processes built from the same codebase: `write-api` for Shorten and, once Resolve is in place, `read-api` ([ADR-0014](docs/adr/0014-writes-and-reads-run-as-separate-processes-from-one-codebase.md)). For development, `api` runs everything in one process.
 
 ## Documentation
 
@@ -22,7 +22,7 @@ Writes and reads run as separate processes (`write-api` and `read-api`) built fr
 
 - Node.js 24 or later
 - pnpm 11
-- Docker, for integration tests and the local stack
+- Docker, for integration tests, end-to-end tests and the local stack
 
 ## Getting started
 
@@ -47,8 +47,8 @@ pnpm check
 | `pnpm typecheck`                    | Type checks sources, tests and config files                                              |
 | `pnpm deps:check`                   | Checks module and layer boundaries with dependency-cruiser                               |
 | `pnpm build`                        | Compiles `src/` to `dist/`                                                               |
-| `pnpm dev`                          | Runs the API from `src/`, restarting on every change                                     |
-| `pnpm start`                        | Runs the compiled API from `dist/` (run `pnpm build` first)                              |
+| `pnpm dev`                          | Runs the all-in-one API from `src/`, restarting on every change                          |
+| `pnpm start`                        | Runs the compiled all-in-one API from `dist/` (run `pnpm build` first)                   |
 | `pnpm db:migrate`                   | Applies the pending database migrations to the Postgres in `.env`                        |
 | `pnpm db:migrate:down`              | Reverts the last applied migration                                                       |
 
@@ -76,7 +76,7 @@ Postgres and Redis are also published on `127.0.0.1`, so `pnpm dev` can use them
 docker compose run --rm migrate node dist/entrypoints/migrate.js down
 ```
 
-The `Dockerfile` builds a production image that runs the API as the non-root `node` user. To run it on its own:
+The `Dockerfile` builds a production image that runs as the non-root `node` user. By default it starts the all-in-one `api`; the compose stack overrides the command for `migrate` and `write-api`. To run it on its own:
 
 ```bash
 docker build -t url-shortener .

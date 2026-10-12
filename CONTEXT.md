@@ -13,7 +13,7 @@ The seven-character, case-sensitive base62 identifier of a Link, unique across a
 _Avoid_: code, slug, token, ID
 
 **Target URL**:
-The http or https URL a Link redirects to, kept in canonical form. It never carries user credentials, and its hostname is never the hostname of the service's public base URL.
+The http or https URL a Link redirects to, kept in canonical form. It never carries user credentials, its hostname is never the hostname of the service's public base URL, and its canonical form is never longer than the configured maximum length.
 _Avoid_: long URL, original URL, destination
 
 **Short URL**:
