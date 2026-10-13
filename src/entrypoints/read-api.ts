@@ -1,7 +1,10 @@
 import { Kysely, PostgresDialect, sql } from "kysely";
 import { pino } from "pino";
 
-import { createLinksReadModule } from "../modules/links/index.js";
+import {
+  createLinksMetrics,
+  createLinksReadModule,
+} from "../modules/links/index.js";
 import { loadReadApiConfig } from "../shared/config/config.js";
 import { buildMetricsServer } from "../shared/http/build-metrics-server.js";
 import { buildServer } from "../shared/http/build-server.js";
@@ -33,6 +36,7 @@ const links = createLinksReadModule({
   db,
   redis,
   logger,
+  metrics: createLinksMetrics(metricsRegistry),
   ...config.resolve,
 });
 

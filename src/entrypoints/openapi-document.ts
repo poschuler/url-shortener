@@ -1,3 +1,4 @@
+import { Registry } from "@prometheus-io/client";
 import {
   DummyDriver,
   Kysely,
@@ -8,6 +9,7 @@ import {
 import { pino } from "pino";
 
 import {
+  createLinksMetrics,
   createLinksReadModule,
   createLinksWriteModule,
 } from "../modules/links/index.js";
@@ -41,9 +43,13 @@ export async function buildOpenApiDocument(): Promise<unknown> {
     logger,
   );
 
+  // Recorded nowhere: no route runs.
+  const metrics = createLinksMetrics(new Registry());
+
   const write = createLinksWriteModule({
     db,
     logger,
+    metrics,
     shortCodeKey: "0".repeat(32),
     publicBaseUrl: "http://localhost",
     maxUrlLength: 2048,
@@ -53,6 +59,7 @@ export async function buildOpenApiDocument(): Promise<unknown> {
     db,
     redis,
     logger,
+    metrics,
     rateLimitMax: 1,
     cacheTtlSeconds: 1,
     cacheNegativeTtlSeconds: 1,

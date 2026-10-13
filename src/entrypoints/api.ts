@@ -2,6 +2,7 @@ import { Kysely, PostgresDialect, sql } from "kysely";
 import { pino } from "pino";
 
 import {
+  createLinksMetrics,
   createLinksReadModule,
   createLinksWriteModule,
 } from "../modules/links/index.js";
@@ -32,9 +33,13 @@ redis.connect().catch((error: unknown) => {
   logger.warn({ err: error }, "Stopped connecting to Redis");
 });
 
+// Once: both modules record into the same metrics.
+const linksMetrics = createLinksMetrics(metricsRegistry);
+
 const write = createLinksWriteModule({
   db,
   logger,
+  metrics: linksMetrics,
   ...config.shorten,
 });
 
@@ -42,6 +47,7 @@ const read = createLinksReadModule({
   db,
   redis,
   logger,
+  metrics: linksMetrics,
   ...config.resolve,
 });
 

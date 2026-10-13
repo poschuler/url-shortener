@@ -1,7 +1,10 @@
 import { Kysely, PostgresDialect, sql } from "kysely";
 import { pino } from "pino";
 
-import { createLinksWriteModule } from "../modules/links/index.js";
+import {
+  createLinksMetrics,
+  createLinksWriteModule,
+} from "../modules/links/index.js";
 import { loadWriteApiConfig } from "../shared/config/config.js";
 import { buildMetricsServer } from "../shared/http/build-metrics-server.js";
 import { buildServer } from "../shared/http/build-server.js";
@@ -23,6 +26,7 @@ const db = new Kysely<unknown>({
 const links = createLinksWriteModule({
   db,
   logger,
+  metrics: createLinksMetrics(metricsRegistry),
   ...config.shorten,
 });
 
