@@ -70,6 +70,18 @@ curl -i localhost:3002/<code>   # the code from the response: 302 to https://exa
 docker compose down
 ```
 
+Each API also serves Prometheus metrics at `/metrics` on a port of its own, `METRICS_PORT` (9464 by default), never on its public port. The stack publishes them on `127.0.0.1` only: `write-api` on port 9464 and `read-api` on port 9465.
+
+```bash
+curl -s localhost:9464/metrics | grep http_request_duration_seconds_count
+```
+
+Besides the Node.js process metrics, they include:
+
+- `http_request_duration_seconds`: every request, by `method`, `route` (the route pattern, or `unmatched`) and `status_code`.
+- `links_cache_lookups_total`: cache reads in `read-api`, by `result` (`hit`, `known-missing` or `miss`). A Redis failure counts as a `miss`.
+- `links_db_query_duration_seconds`: Postgres queries, by `operation` (`allocate_range`, `save_link` or `find_target_url`) and `outcome` (`ok` or `error`).
+
 `--remove-orphans` removes containers of services that are no longer in `compose.yaml`, such as an older all-in-one `api`.
 
 Both routes are rate limited per client IP, each with its own maximum in the same window of `RATE_LIMIT_WINDOW_MS`: `SHORTEN_RATE_LIMIT_MAX` for `POST /links` and a more generous `RESOLVE_RATE_LIMIT_MAX` for `GET /:code`. Behind a reverse proxy, list its addresses in `TRUST_PROXY` so the limit applies to the real client instead of the proxy.

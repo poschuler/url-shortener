@@ -28,6 +28,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3002
+      METRICS_PORT: 9464
       LOG_LEVEL: ${LOG_LEVEL:-info}
       TRUST_PROXY: ${TRUST_PROXY:-}
       DOCS_ENABLED: ${DOCS_ENABLED:-false}
@@ -45,6 +46,8 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
     ports:
       - "3002:3002"
+      # Metrics, reachable from this host only.
+      - "127.0.0.1:9465:9464"
     depends_on:
       postgres:
         condition: service_healthy
@@ -71,6 +74,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
+      METRICS_PORT: 9464
       LOG_LEVEL: ${LOG_LEVEL:-info}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL in .env}
       MAX_URL_LENGTH: ${MAX_URL_LENGTH:-2048}
@@ -86,6 +90,8 @@ services:
       PG_NAME: ${PG_NAME:?set PG_NAME in .env}
     ports:
       - "3001:3001"
+      # Metrics, reachable from this host only.
+      - "127.0.0.1:9464:9464"
     depends_on:
       postgres:
         condition: service_healthy
