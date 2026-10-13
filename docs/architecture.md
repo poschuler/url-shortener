@@ -8,19 +8,16 @@ The system at three levels of the [C4 model](https://c4model.com): its context, 
 flowchart LR
   creator["Anyone who shortens<br/>[Person or program]<br/>Has a Target URL to share"]
   visitor["Visitor<br/>[Person, browser]<br/>Follows a Short URL"]
-  ops["Operator<br/>[k6]<br/>Load tests it"]
   system["url-shortener<br/>[Software system]<br/>Shortens Target URLs and resolves Short Codes"]
   target["Target site<br/>[External website]<br/>Never contacted by the system"]
 
   creator -- "POST /links" --> system
   visitor -- "GET /:code → 302" --> system
   visitor -. "follows the redirect" .-> target
-  ops -- "GET /:code, at a fixed rate" --> system
 ```
 
 - Anyone can shorten a URL: there are no accounts and no authentication, and the system does not record who shortened what ([ADR-0003](adr/0003-shortening-is-open-without-authentication.md)).
 - The system never contacts a Target URL, not even to validate it ([ADR-0005](adr/0005-target-url-validation-never-contacts-the-target-url.md)). Only the Visitor's browser reaches the Target site, by following the redirect.
-- The operator load tests the read path with k6.
 
 ## Level 2: Containers
 
@@ -28,7 +25,6 @@ flowchart LR
 flowchart LR
   creator["Anyone who shortens<br/>[Person or program]"]
   visitor["Visitor<br/>[Browser]"]
-  ops["Operator<br/>[k6]"]
 
   subgraph system["url-shortener"]
     write["write-api<br/>[Node.js, Fastify]<br/>Shorten · port 3001"]
@@ -40,7 +36,6 @@ flowchart LR
 
   creator -- "POST /links" --> write
   visitor -- "GET /:code → 302" --> read
-  ops -. "load test" .-> read
   migrate -- "before the APIs start" --> pg
   write -- "ranges, inserts" --> pg
   read -- "1 · cache first" --> redis

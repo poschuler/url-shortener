@@ -19,7 +19,6 @@ Writes and reads run as separate processes built from the same codebase: `write-
 flowchart LR
   creator["Anyone who shortens<br/>[Person or program]"]
   visitor["Visitor<br/>[Browser]"]
-  ops["Operator<br/>[k6]"]
 
   subgraph system["url-shortener"]
     write["write-api<br/>[Node.js, Fastify]<br/>Shorten · port 3001"]
@@ -31,7 +30,6 @@ flowchart LR
 
   creator -- "POST /links" --> write
   visitor -- "GET /:code → 302" --> read
-  ops -. "load test" .-> read
   migrate -- "before the APIs start" --> pg
   write -- "ranges, inserts" --> pg
   read -- "1 · cache first" --> redis
