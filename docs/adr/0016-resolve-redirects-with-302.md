@@ -1,6 +1,6 @@
 # Resolve redirects with 302
 
-`GET /:code` answers with a `302 Found` to the Target URL, not a `301 Moved Permanently`, even though Links never change (ADR-0001). Browsers cache a 301 with no expiry and follow it from then on without asking the service again. That would take two things away for good: disabling a Link that turns out to be abusive (phishing, malware) for Visitors who already followed it, and counting visits, which the metrics phase needs. A 302 keeps every visit going through the service, and the Redis cache keeps that cheap (ADR-0017).
+`GET /:code` answers with a `302 Found` to the Target URL, not a `301 Moved Permanently`, even though Links never change (ADR-0001). Browsers cache a 301 with no expiry and follow it from then on without asking the service again. That would take two things away for good: disabling a Link that turns out to be abusive (phishing, malware) for Visitors who already followed it, and counting visits, if they are ever needed. A 302 keeps every visit going through the service, and the Redis cache keeps that cheap (ADR-0017).
 
 ## Considered Options
 

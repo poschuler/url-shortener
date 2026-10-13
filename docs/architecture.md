@@ -8,19 +8,19 @@ The system at three levels of the [C4 model](https://c4model.com): its context, 
 flowchart LR
   creator["Anyone who shortens<br/>[Person or program]<br/>Has a Target URL to share"]
   visitor["Visitor<br/>[Person, browser]<br/>Follows a Short URL"]
-  ops["Operator<br/>[Prometheus, k6]<br/>Watches and load tests it"]
+  ops["Operator<br/>[k6]<br/>Load tests it"]
   system["url-shortener<br/>[Software system]<br/>Shortens Target URLs and resolves Short Codes"]
   target["Target site<br/>[External website]<br/>Never contacted by the system"]
 
   creator -- "POST /links" --> system
   visitor -- "GET /:code → 302" --> system
   visitor -. "follows the redirect" .-> target
-  ops -- "GET /metrics, private port" --> system
+  ops -- "GET /:code, at a fixed rate" --> system
 ```
 
 - Anyone can shorten a URL: there are no accounts and no authentication, and the system does not record who shortened what ([ADR-0003](adr/0003-shortening-is-open-without-authentication.md)).
 - The system never contacts a Target URL, not even to validate it ([ADR-0005](adr/0005-target-url-validation-never-contacts-the-target-url.md)). Only the Visitor's browser reaches the Target site, by following the redirect.
-- The operator scrapes metrics from a port of their own, which is not published with the API, and load tests the read path with k6.
+- The operator load tests the read path with k6.
 
 ## Level 2: Containers
 
@@ -28,7 +28,7 @@ flowchart LR
 flowchart LR
   creator["Anyone who shortens<br/>[Person or program]"]
   visitor["Visitor<br/>[Browser]"]
-  ops["Operator<br/>[Prometheus, k6]"]
+  ops["Operator<br/>[k6]"]
 
   subgraph system["url-shortener"]
     write["write-api<br/>[Node.js, Fastify]<br/>Shorten · port 3001"]
@@ -40,8 +40,7 @@ flowchart LR
 
   creator -- "POST /links" --> write
   visitor -- "GET /:code → 302" --> read
-  ops -. "GET /metrics :9464" .-> write
-  ops -. "GET /metrics :9464" .-> read
+  ops -. "load test" .-> read
   migrate -- "before the APIs start" --> pg
   write -- "ranges, inserts" --> pg
   read -- "1 · cache first" --> redis
@@ -52,7 +51,7 @@ flowchart LR
 - `write-api` needs no Redis. It reserves Short Code numbers from a Postgres sequence a range at a time, so most Shorten requests take a number without asking the database ([ADR-0010](adr/0010-short-code-numbers-are-handed-out-in-ranges.md), [ADR-0011](adr/0011-a-postgres-sequence-allocates-the-ranges.md)).
 - `read-api` reads Target URLs through Redis and falls back to Postgres on a miss. It also caches Short Codes without a Link for a short time. When Redis is down or slow, Resolve keeps working from Postgres ([ADR-0017](adr/0017-resolve-reads-through-a-redis-cache-with-negative-entries.md)).
 - `migrate` applies the database migrations with Kysely and exits; the APIs start only if it succeeds ([ADR-0012](adr/0012-kysely-for-sql-and-migrations.md)).
-- Each API process rate limits its routes per client IP, in memory ([ADR-0015](adr/0015-routes-are-rate-limited-per-client-ip-in-each-process.md)), and serves `/metrics` on a second port, 9464 inside the container.
+- Each API process rate limits its routes per client IP, in memory ([ADR-0015](adr/0015-routes-are-rate-limited-per-client-ip-in-each-process.md)).
 
 ## Level 3: Components of the `links` module
 
@@ -82,13 +81,9 @@ flowchart LR
   end
 
   subgraph infra["infrastructure/ · driven adapters"]
-    icache["InstrumentedLinkCache<br/>[metrics decorator]"]
-    ilookup["InstrumentedTargetUrlLookup<br/>[metrics decorator]"]
-    ranged["RangedNumberSequence<br/>numbers from reserved ranges"]
-    irepo["InstrumentedLinkRepository<br/>[metrics decorator]"]
     rcache["RedisLinkCache<br/>failures become misses"]
     pglookup["PostgresTargetUrlLookup"]
-    ialloc["InstrumentedRangeAllocator<br/>[metrics decorator]"]
+    ranged["RangedNumberSequence<br/>numbers from reserved ranges"]
     pgrepo["PostgresLinkRepository"]
     pgalloc["PostgresRangeAllocator"]
   end
@@ -101,16 +96,12 @@ flowchart LR
   shorten --> repoport
   application -- "uses" --> domain
 
-  cacheport -. "implemented by" .-> icache
-  lookupport -. "implemented by" .-> ilookup
+  cacheport -. "implemented by" .-> rcache
+  lookupport -. "implemented by" .-> pglookup
   seqport -. "implemented by" .-> ranged
-  repoport -. "implemented by" .-> irepo
+  repoport -. "implemented by" .-> pgrepo
 
-  icache -- wraps --> rcache
-  ilookup -- wraps --> pglookup
-  ranged -- "RangeAllocator port" --> ialloc
-  ialloc -- wraps --> pgalloc
-  irepo -- wraps --> pgrepo
+  ranged -- "RangeAllocator port" --> pgalloc
 ```
 
 The dotted arrows read "implemented by" so the diagram flows from left to right. In the code, the dependency points the other way: each adapter imports the interface of its port, and nothing in `application/` or `domain/` imports an adapter.
@@ -121,7 +112,7 @@ The dotted arrows read "implemented by" so the diagram flows from left to right.
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
 | `domain/`         | `Link`, the `ShortCode` and `TargetUrl` value objects, their errors, the Feistel permutation and the `LinkRepository` port | nothing outside `domain/`, except `shared/domain/` |
 | `application/`    | The `ShortenLink` and `ResolveLink` use cases and their ports                                                              | `domain/` and `shared/domain/`                     |
-| `infrastructure/` | Postgres and Redis adapters, the ranged number sequence, the metrics decorators and in-memory fakes for tests              | anything but `http/`                               |
+| `infrastructure/` | Postgres and Redis adapters, the ranged number sequence and in-memory fakes for tests                                      | anything but `http/`                               |
 | `http/`           | The Fastify routes and the mapping from errors to Problem Details                                                          | anything but `infrastructure/`                     |
 | `index.ts`        | The composition: `createLinksWriteModule` and `createLinksReadModule`                                                      | anything in the module                             |
 
@@ -133,18 +124,12 @@ dependency-cruiser checks these rules in `pnpm check`, along with two more: a mo
 
 `RangeAllocator` is a port inside `infrastructure/`: `RangedNumberSequence` hands out numbers from ranges, and only asks Postgres for a new range through it. It keeps the sequence logic testable without a database.
 
-### Metrics decorators
-
-Each port that reaches Redis or Postgres is wrapped in an `Instrumented*` decorator. It implements the same interface, delegates to the real adapter and records the result: cache reads by result, and the time of each query by operation and outcome. The use cases and the adapters do not know about metrics. `index.ts` puts each decorator around its adapter ([ADR-0021](adr/0021-prometheus-metrics-on-a-port-of-their-own-recorded-by-decorators.md)).
-
 ### Composition
 
 `index.ts` exposes two functions, and the entrypoints in `src/entrypoints/` call the ones they need:
 
 - `createLinksWriteModule` wires `ShortenLink` with the ranged sequence and the Postgres repository, and registers `POST /links`. `write-api` and `api` call it.
 - `createLinksReadModule` wires `ResolveLink` with the Redis cache and the Postgres lookup, and registers `GET /:code`. `read-api` and `api` call it.
-
-Both receive their metrics from the entrypoint, which creates them once per process, so `api` can compose both sides in one metrics registry.
 
 ### Tests
 

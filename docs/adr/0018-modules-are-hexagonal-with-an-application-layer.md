@@ -15,4 +15,4 @@ The wiring is written by hand. A module exposes it in its `index.ts`, as functio
 
 ## Consequences
 
-A module has more files and interfaces than a CRUD service would. In exchange, the use cases are tested against in-memory fakes with no database, and an adapter can change without touching the core: the metrics decorators (ADR-0021) were added around the adapters without changing a use case. A new module copies the structure of `links`, and other modules can use it only through its `index.ts`.
+A module has more files and interfaces than a CRUD service would. In exchange, the use cases are tested against in-memory fakes with no database, and an adapter can change without touching the core. A new module copies the structure of `links`, and other modules can use it only through its `index.ts`.

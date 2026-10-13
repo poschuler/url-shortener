@@ -4,7 +4,7 @@
 
 A URL shortener built with Node.js, TypeScript and Fastify: a modular monolith with hexagonal architecture, used as a reference project for posts on [poschuler.com](https://poschuler.com).
 
-> **Status: work in progress.** Shorten and Resolve work end to end, with an OpenAPI reference, Prometheus metrics and a load test. Some architecture decision records are still to be written.
+> **Status: complete.** Shorten and Resolve work end to end, with an OpenAPI reference and a load test. The repository stays as it is, as the reference for the posts.
 
 ## What it does
 
@@ -19,7 +19,7 @@ Writes and reads run as separate processes built from the same codebase: `write-
 flowchart LR
   creator["Anyone who shortens<br/>[Person or program]"]
   visitor["Visitor<br/>[Browser]"]
-  ops["Operator<br/>[Prometheus, k6]"]
+  ops["Operator<br/>[k6]"]
 
   subgraph system["url-shortener"]
     write["write-api<br/>[Node.js, Fastify]<br/>Shorten · port 3001"]
@@ -31,8 +31,7 @@ flowchart LR
 
   creator -- "POST /links" --> write
   visitor -- "GET /:code → 302" --> read
-  ops -. "GET /metrics :9464" .-> write
-  ops -. "GET /metrics :9464" .-> read
+  ops -. "load test" .-> read
   migrate -- "before the APIs start" --> pg
   write -- "ranges, inserts" --> pg
   read -- "1 · cache first" --> redis
@@ -43,6 +42,22 @@ flowchart LR
 - **Resolve** reads the Target URL from Redis, falls back to Postgres on a miss, and caches Short Codes without a Link too ([ADR-0017](docs/adr/0017-resolve-reads-through-a-redis-cache-with-negative-entries.md)). It redirects with 302 ([ADR-0016](docs/adr/0016-resolve-redirects-with-302.md)).
 
 Inside, each module is hexagonal ([ADR-0018](docs/adr/0018-modules-are-hexagonal-with-an-application-layer.md)): its use cases and domain do no I/O and reach Postgres and Redis through ports, and dependency-cruiser enforces the layers ([ADR-0009](docs/adr/0009-dependency-boundaries-are-enforced-with-dependency-cruiser.md)). [`docs/architecture.md`](docs/architecture.md) has the three levels of the C4 model, down to the components of the `links` module, and both paths step by step.
+
+## Where to start reading
+
+The design of a URL shortener fits in a few files and ADRs. Start with these:
+
+- **Short Codes that cannot be enumerated**: [`short-code-permutation.ts`](src/modules/links/domain/short-code-permutation.ts) turns a number into a Short Code with a keyed Feistel permutation ([ADR-0004](docs/adr/0004-keyed-feistel-permutation-for-short-codes.md)).
+- **Numbers without a database round trip per Link**: [`ranged-number-sequence.ts`](src/modules/links/infrastructure/ranges/ranged-number-sequence.ts) hands out numbers from ranges that [`postgres-range-allocator.ts`](src/modules/links/infrastructure/postgres/postgres-range-allocator.ts) reserves from a Postgres sequence ([ADR-0010](docs/adr/0010-short-code-numbers-are-handed-out-in-ranges.md), [ADR-0011](docs/adr/0011-a-postgres-sequence-allocates-the-ranges.md)).
+- **The two use cases**: [`shorten-link.ts`](src/modules/links/application/shorten-link.ts) and [`resolve-link.ts`](src/modules/links/application/resolve-link.ts), with the cache-aside read and its negative entries in [`redis-link-cache.ts`](src/modules/links/infrastructure/redis/redis-link-cache.ts) ([ADR-0017](docs/adr/0017-resolve-reads-through-a-redis-cache-with-negative-entries.md)).
+- **The decisions behind them**: Links are immutable ([ADR-0001](docs/adr/0001-links-are-immutable-and-permanent.md)), shortening the same URL twice gives two Links ([ADR-0002](docs/adr/0002-shortening-is-not-idempotent.md)), Resolve answers 302 ([ADR-0016](docs/adr/0016-resolve-redirects-with-302.md)), writes and reads run as separate processes ([ADR-0014](docs/adr/0014-writes-and-reads-run-as-separate-processes-from-one-codebase.md)) and both are rate limited per client IP ([ADR-0015](docs/adr/0015-routes-are-rate-limited-per-client-ip-in-each-process.md)).
+
+The rest is there on purpose, but a URL shortener does not need it. It shows how the service would be built and run in production:
+
+- The hexagonal modules, the minimal DDD and the boundaries that dependency-cruiser enforces ([ADR-0018](docs/adr/0018-modules-are-hexagonal-with-an-application-layer.md), [ADR-0020](docs/adr/0020-ddd-only-at-the-tactical-level-kept-small.md), [ADR-0009](docs/adr/0009-dependency-boundaries-are-enforced-with-dependency-cruiser.md)), with contract tests and in-memory fakes.
+- The hardening of the number sequence: a spare range loaded ahead of time, a single refill shared by every caller, and retries with backoff.
+- The k6 load test of the read path (see [Load testing](#load-testing)).
+- The toolchain: TypeScript 7 with oxlint and oxfmt ([ADR-0007](docs/adr/0007-typescript-7-with-the-oxc-toolchain.md)).
 
 ## Documentation
 
@@ -80,14 +95,13 @@ The Short URLs that `api` returns point to `PUBLIC_BASE_URL`, which `.env.exampl
 
 ## API
 
-| Route          | Served by          | Answers                                                                                              |
-| -------------- | ------------------ | ---------------------------------------------------------------------------------------------------- |
-| `POST /links`  | `write-api`, `api` | 201 with the `code` and the `shortUrl` for the `url` in the body; 400 for an invalid Target URL; 429 |
-| `GET /:code`   | `read-api`, `api`  | 302 to the Target URL; 400 for a malformed Short Code; 404 when no Link has it; 429                  |
-| `GET /health`  | every API          | 200 while the process is up                                                                          |
-| `GET /ready`   | every API          | 200 when its dependencies are ready, 503 naming the ones that are not                                |
-| `GET /docs`    | every API          | The API reference, only with `DOCS_ENABLED=true`                                                     |
-| `GET /metrics` | every API          | Prometheus metrics, on `METRICS_PORT` only (see [Metrics](#metrics))                                 |
+| Route         | Served by          | Answers                                                                                              |
+| ------------- | ------------------ | ---------------------------------------------------------------------------------------------------- |
+| `POST /links` | `write-api`, `api` | 201 with the `code` and the `shortUrl` for the `url` in the body; 400 for an invalid Target URL; 429 |
+| `GET /:code`  | `read-api`, `api`  | 302 to the Target URL; 400 for a malformed Short Code; 404 when no Link has it; 429                  |
+| `GET /health` | every API          | 200 while the process is up                                                                          |
+| `GET /ready`  | every API          | 200 when its dependencies are ready, 503 naming the ones that are not                                |
+| `GET /docs`   | every API          | The API reference, only with `DOCS_ENABLED=true`                                                     |
 
 Errors are [Problem Details](https://www.rfc-editor.org/rfc/rfc9457) (`application/problem+json`). Every response carries an `x-request-id` header, the one the request sent or a new one, and the logs use the same id.
 
@@ -107,7 +121,6 @@ Each process reads its variables from the environment, or from `.env` with `pnpm
 | `NODE_ENV`                   | `development`                           | every API          | `development`, `test` or `production`                                                                                                                                    |
 | `PORT`                       | 3000 (`api`), 3001 (write), 3002 (read) | every API          | Port of the API                                                                                                                                                          |
 | `LOG_LEVEL`                  | `info`                                  | every process      | pino log level, from `fatal` to `trace`, or `silent`                                                                                                                     |
-| `METRICS_PORT`               | 9464                                    | every API          | Port of `/metrics`, apart from the API                                                                                                                                   |
 | `PG_HOST`                    | required                                | every process      | Postgres host                                                                                                                                                            |
 | `PG_PORT`                    | 5432                                    | every process      | Postgres port                                                                                                                                                            |
 | `PG_USER`, `PG_PASSWORD`     | required                                | every process      | Postgres credentials                                                                                                                                                     |
@@ -174,20 +187,6 @@ curl -i localhost:3000/health
 
 `docker run --env-file` keeps quotes as part of the value, so keep the values in `.env` unquoted. The container shuts down gracefully on `SIGTERM` (`docker stop`).
 
-## Metrics
-
-Each API serves Prometheus metrics at `/metrics` on a port of its own, `METRICS_PORT` (9464 by default), never on its public port ([ADR-0021](docs/adr/0021-prometheus-metrics-on-a-port-of-their-own-recorded-by-decorators.md)). The stack publishes them on `127.0.0.1` only: `write-api` on port 9464 and `read-api` on port 9465.
-
-```bash
-curl -s localhost:9464/metrics | grep http_request_duration_seconds_count
-```
-
-Besides the Node.js process metrics, they include:
-
-- `http_request_duration_seconds`: every request, by `method`, `route` (the route pattern, or `unmatched`) and `status_code`.
-- `links_cache_lookups_total`: cache reads in `read-api`, by `result` (`hit`, `known-missing` or `miss`). A Redis failure counts as a `miss`.
-- `links_db_query_duration_seconds`: Postgres queries, by `operation` (`allocate_range`, `save_link` or `find_target_url`) and `outcome` (`ok` or `error`).
-
 ## Load testing
 
 `test/load/resolve-link.ts` is a [k6](https://grafana.com/docs/k6/) script for the read path. It runs in the `k6` service of the compose stack, from the `grafana/k6` image, so nothing has to be installed. It first creates 1000 links, then asks `read-api` for them at a fixed rate: 500 requests per second for one minute, a tenth of them for Short Codes without a Link.
@@ -201,11 +200,7 @@ docker compose run --rm -e RATE=1000 -e DURATION=30s k6   # another rate or dura
 docker compose up -d --wait                               # back to the limits in .env
 ```
 
-k6 exits with an error when more than 1% of the requests fail or when the 95th and 99th percentiles go past 100 ms and 250 ms. The thresholds are loose on purpose: they catch a broken cache or a wall of 429s, not a slower machine. After a run, the metrics of `read-api` show the cache hit ratio and the time spent in Postgres:
-
-```bash
-curl -s localhost:9465/metrics | grep -E '^links_'
-```
+k6 exits with an error when more than 1% of the requests fail or when the 95th and 99th percentiles go past 100 ms and 250 ms. The thresholds are loose on purpose: they catch a broken cache or a wall of 429s, not a slower machine.
 
 ## Continuous integration
 
