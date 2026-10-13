@@ -133,7 +133,7 @@ dependency-cruiser checks these rules in `pnpm check`, along with two more: a mo
 
 ### Tests
 
-The use cases are tested against in-memory fakes of their ports, with no database. The fakes of the cache, the Target URL lookup and the range allocator pass the same contract tests as their real adapters, in `test/contract/`, so they cannot drift from what they stand for. The Postgres and Redis adapters are tested against real containers, and the compose stack end to end ([ADR-0006](adr/0006-tests-live-in-a-separate-tree-split-by-kind.md)).
+The use cases are tested against in-memory fakes of their ports, with no database. Every in-memory fake passes the same contract tests as the real adapter it stands for, in `test/contract/`, so they cannot drift apart. The Postgres and Redis adapters are tested against real containers, and the compose stack end to end ([ADR-0006](adr/0006-tests-live-in-a-separate-tree-split-by-kind.md)).
 
 ## Shorten, step by step
 
