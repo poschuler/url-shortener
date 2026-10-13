@@ -74,7 +74,6 @@ describe("loadWriteApiConfig", () => {
         logLevel: "info",
       },
       http: { trustProxy: [], rateLimitWindowMs: 60_000, docsEnabled: false },
-      metrics: { port: 9464 },
       shorten: {
         publicBaseUrl: "http://localhost:3000",
         maxUrlLength: 2048,
@@ -140,12 +139,6 @@ describe("loadWriteApiConfig", () => {
       ).toThrow(/TRUST_PROXY/);
     },
   );
-
-  it("reads METRICS_PORT", () => {
-    const config = loadWriteApiConfig({ ...writeApiEnv, METRICS_PORT: "9100" });
-
-    expect(config.metrics).toEqual({ port: 9100 });
-  });
 });
 
 describe("loadReadApiConfig", () => {
@@ -157,7 +150,6 @@ describe("loadReadApiConfig", () => {
         logLevel: "info",
       },
       http: { trustProxy: [], rateLimitWindowMs: 60_000, docsEnabled: false },
-      metrics: { port: 9464 },
       redis: {
         host: "localhost",
         port: 6379,

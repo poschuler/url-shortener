@@ -25,9 +25,6 @@ export type ApiConfig = {
     rateLimitWindowMs: number;
     docsEnabled: boolean;
   };
-  metrics: {
-    port: number;
-  };
   shorten: {
     publicBaseUrl: string;
     maxUrlLength: number;
@@ -61,7 +58,7 @@ export type WriteApiConfig = Omit<ApiConfig, "redis" | "resolve">;
 // The read API creates no Links: no Short Code key, no public base URL.
 export type ReadApiConfig = Omit<ApiConfig, "shorten">;
 
-type ServerConfig = Pick<ApiConfig, "app" | "http" | "metrics" | "db">;
+type ServerConfig = Pick<ApiConfig, "app" | "http" | "db">;
 
 export type MigrateConfig = {
   app: Pick<ApiConfig["app"], "logLevel">;
@@ -124,11 +121,6 @@ const HttpEnv = z.object({
   DOCS_ENABLED: z.stringbool().default(false),
 });
 
-// A port of its own, so /metrics is not reachable where the API is public.
-const MetricsEnv = z.object({
-  METRICS_PORT: port.default(9464),
-});
-
 const RedisEnv = z.object({
   REDIS_HOST: required.default("localhost"),
   REDIS_PORT: port.default(6379),
@@ -149,7 +141,6 @@ const ServerEnv = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   ...HttpEnv.shape,
-  ...MetricsEnv.shape,
 });
 
 const WriteApiEnv = z.object({
@@ -241,7 +232,6 @@ function toServerConfig(
       rateLimitWindowMs: vars.RATE_LIMIT_WINDOW_MS,
       docsEnabled: vars.DOCS_ENABLED,
     },
-    metrics: { port: vars.METRICS_PORT },
     db: toDbConfig(vars),
   };
 }

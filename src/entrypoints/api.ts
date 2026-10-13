@@ -2,14 +2,11 @@ import { Kysely, PostgresDialect, sql } from "kysely";
 import { pino } from "pino";
 
 import {
-  createLinksMetrics,
   createLinksReadModule,
   createLinksWriteModule,
 } from "../modules/links/index.js";
 import { loadApiConfig } from "../shared/config/config.js";
-import { buildMetricsServer } from "../shared/http/build-metrics-server.js";
 import { buildServer } from "../shared/http/build-server.js";
-import { createMetricsRegistry } from "../shared/metrics/create-metrics-registry.js";
 import { createPool } from "../shared/postgres/create-pool.js";
 import { createRedisClient } from "../shared/redis/create-redis-client.js";
 import { shutdownOnSignals } from "./shutdown.js";
@@ -17,7 +14,6 @@ import { shutdownOnSignals } from "./shutdown.js";
 // All-in-one process for development: Shorten and Resolve together.
 const config = loadApiConfig();
 const logger = pino({ level: config.app.logLevel });
-const metricsRegistry = createMetricsRegistry();
 
 const db = new Kysely<unknown>({
   dialect: new PostgresDialect({
@@ -33,13 +29,9 @@ redis.connect().catch((error: unknown) => {
   logger.warn({ err: error }, "Stopped connecting to Redis");
 });
 
-// Once: both modules record into the same metrics.
-const linksMetrics = createLinksMetrics(metricsRegistry);
-
 const write = createLinksWriteModule({
   db,
   logger,
-  metrics: linksMetrics,
   ...config.shorten,
 });
 
@@ -47,7 +39,6 @@ const read = createLinksReadModule({
   db,
   redis,
   logger,
-  metrics: linksMetrics,
   ...config.resolve,
 });
 
@@ -56,7 +47,6 @@ const app = await buildServer({
   rateLimitWindowMs: config.http.rateLimitWindowMs,
   trustProxy: config.http.trustProxy,
   docsEnabled: config.http.docsEnabled,
-  metricsRegistry,
   readinessChecks: {
     postgres: async () => {
       await sql`select 1`.execute(db);
@@ -69,17 +59,12 @@ const app = await buildServer({
 write.registerRoutes(app);
 read.registerRoutes(app);
 
-const metricsApp = buildMetricsServer({ logger, registry: metricsRegistry });
-
 // Runs after the in-flight requests finish, so none of them loses a client.
-// Metrics stay up until then, so the shutdown can still be scraped.
 app.addHook("onClose", async () => {
   redis.destroy();
   await db.destroy();
-  await metricsApp.close();
 });
 
 shutdownOnSignals(app);
 
 await app.listen({ port: config.app.port, host: "0.0.0.0" });
-await metricsApp.listen({ port: config.metrics.port, host: "0.0.0.0" });

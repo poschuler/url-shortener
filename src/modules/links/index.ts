@@ -9,22 +9,12 @@ import { ShortenLink } from "./application/shorten-link.js";
 import { permutationKeyFromHex } from "./domain/short-code-permutation.js";
 import { registerResolveLinkRoute } from "./http/resolve-link.route.js";
 import { registerShortenLinkRoute } from "./http/shorten-link.route.js";
-import { InstrumentedLinkCache } from "./infrastructure/metrics/instrumented-link-cache.js";
-import { InstrumentedLinkRepository } from "./infrastructure/metrics/instrumented-link-repository.js";
-import { InstrumentedRangeAllocator } from "./infrastructure/metrics/instrumented-range-allocator.js";
-import { InstrumentedTargetUrlLookup } from "./infrastructure/metrics/instrumented-target-url-lookup.js";
-import type { LinksMetrics } from "./infrastructure/metrics/links-metrics.js";
 import type { LinksDatabase } from "./infrastructure/postgres/links-database.js";
 import { PostgresLinkRepository } from "./infrastructure/postgres/postgres-link-repository.js";
 import { PostgresRangeAllocator } from "./infrastructure/postgres/postgres-range-allocator.js";
 import { PostgresTargetUrlLookup } from "./infrastructure/postgres/postgres-target-url-lookup.js";
 import { RangedNumberSequence } from "./infrastructure/ranges/ranged-number-sequence.js";
 import { RedisLinkCache } from "./infrastructure/redis/redis-link-cache.js";
-
-export {
-  createLinksMetrics,
-  type LinksMetrics,
-} from "./infrastructure/metrics/links-metrics.js";
 
 // Fixed tuning, not configuration: the range size itself is set by the
 // migration. Ask for the next range once 20% of the current one is left.
@@ -41,7 +31,6 @@ export type LinksModule = {
 export type LinksWriteModuleDeps = {
   db: Kysely<unknown>;
   logger: BaseLogger;
-  metrics: LinksMetrics;
   shortCodeKey: string;
   publicBaseUrl: string;
   maxUrlLength: number;
@@ -56,10 +45,7 @@ export function createLinksWriteModule(
   const db = deps.db.$extendTables<LinksDatabase>();
 
   const sequence = new RangedNumberSequence({
-    allocator: new InstrumentedRangeAllocator(
-      new PostgresRangeAllocator(db),
-      deps.metrics.queryDuration,
-    ),
+    allocator: new PostgresRangeAllocator(db),
     refillThreshold: RANGE_REFILL_THRESHOLD,
     retry: RANGE_RETRY,
     logger: deps.logger,
@@ -67,10 +53,7 @@ export function createLinksWriteModule(
 
   const shortenLink = new ShortenLink({
     sequence,
-    repository: new InstrumentedLinkRepository(
-      new PostgresLinkRepository(db),
-      deps.metrics.queryDuration,
-    ),
+    repository: new PostgresLinkRepository(db),
     shortCodeKey: permutationKeyFromHex(deps.shortCodeKey),
     targetUrlRules: {
       maxLength: deps.maxUrlLength,
@@ -96,7 +79,6 @@ export type LinksReadModuleDeps = {
   db: Kysely<unknown>;
   redis: RedisClient;
   logger: BaseLogger;
-  metrics: LinksMetrics;
   rateLimitMax: number;
   cacheTtlSeconds: number;
   cacheNegativeTtlSeconds: number;
@@ -106,18 +88,12 @@ export type LinksReadModuleDeps = {
 // compose it the same way.
 export function createLinksReadModule(deps: LinksReadModuleDeps): LinksModule {
   const resolveLink = new ResolveLink({
-    cache: new InstrumentedLinkCache(
-      new RedisLinkCache(deps.redis, deps.logger, {
-        ttlSeconds: deps.cacheTtlSeconds,
-        negativeTtlSeconds: deps.cacheNegativeTtlSeconds,
-        timeoutMs: CACHE_TIMEOUT_MS,
-      }),
-      deps.metrics.cacheLookups,
-    ),
-    lookup: new InstrumentedTargetUrlLookup(
-      new PostgresTargetUrlLookup(deps.db.$extendTables<LinksDatabase>()),
-      deps.metrics.queryDuration,
-    ),
+    cache: new RedisLinkCache(deps.redis, deps.logger, {
+      ttlSeconds: deps.cacheTtlSeconds,
+      negativeTtlSeconds: deps.cacheNegativeTtlSeconds,
+      timeoutMs: CACHE_TIMEOUT_MS,
+    }),
+    lookup: new PostgresTargetUrlLookup(deps.db.$extendTables<LinksDatabase>()),
   });
 
   return {

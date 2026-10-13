@@ -1,4 +1,3 @@
-import { Registry } from "@prometheus-io/client";
 import type { StartedRedisContainer } from "@testcontainers/redis";
 import type { FastifyInstance } from "fastify";
 import type { Kysely } from "kysely";
@@ -12,10 +11,7 @@ import {
   it,
 } from "vitest";
 
-import {
-  createLinksMetrics,
-  createLinksReadModule,
-} from "#src/modules/links/index.js";
+import { createLinksReadModule } from "#src/modules/links/index.js";
 import type { LinksDatabase } from "#src/modules/links/infrastructure/postgres/links-database.js";
 import { linksMigrationsFolder } from "#src/modules/links/infrastructure/postgres/migrations-folder.js";
 import { PostgresLinkRepository } from "#src/modules/links/infrastructure/postgres/postgres-link-repository.js";
@@ -35,7 +31,6 @@ describe("createLinksReadModule", () => {
   let db: Kysely<LinksDatabase>;
   let redis: RedisClient;
   let app: FastifyInstance;
-  let registry: Registry;
 
   beforeAll(async () => {
     container = await startRedisContainer();
@@ -57,12 +52,10 @@ describe("createLinksReadModule", () => {
     await redis.connect();
     await redis.flushDb();
 
-    registry = new Registry();
     const links = createLinksReadModule({
       db: testDb,
       redis,
       logger: silentLogger,
-      metrics: createLinksMetrics(registry),
       rateLimitMax: 100,
       cacheTtlSeconds: 86_400,
       cacheNegativeTtlSeconds: 60,
@@ -106,18 +99,6 @@ describe("createLinksReadModule", () => {
 
     expect(response.statusCode).toBe(404);
     expect(await redis.get("links:target-url:abc1235")).toBe("");
-  });
-
-  it("records the cache reads and the Postgres lookups", async () => {
-    await app.inject({ url: "/abc1234" });
-    await app.inject({ url: "/abc1234" });
-
-    const metrics = await registry.metrics();
-    expect(metrics).toContain('links_cache_lookups_total{result="miss"} 1');
-    expect(metrics).toContain('links_cache_lookups_total{result="hit"} 1');
-    expect(metrics).toContain(
-      'links_db_query_duration_seconds_count{operation="find_target_url",outcome="ok"} 1',
-    );
   });
 
   it("keeps resolving and stays ready while Redis is down", async () => {
