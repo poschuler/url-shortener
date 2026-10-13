@@ -69,6 +69,9 @@ export async function buildServer({
   await app.register(rateLimit, {
     global: false,
     timeWindow: rateLimitWindowMs,
+    // One client usually holds a whole IPv6 /64 and can rotate addresses in
+    // it, so the key is the /64. An IPv4 mapped to IPv6 is keyed as the IPv4.
+    ipv6Subnet: 64,
   });
 
   // Collects the schema of every route added from here on. Always on, so the

@@ -120,6 +120,47 @@ describe("buildServer", () => {
     expect(health.headers).not.toHaveProperty("x-ratelimit-limit");
   });
 
+  it.each([
+    {
+      pair: "two IPv6 in the same /64",
+      first: "2001:db8:0:1::1",
+      second: "2001:db8:0:1::2",
+    },
+    {
+      pair: "an IPv4 and the same IPv4 mapped to IPv6",
+      first: "203.0.113.7",
+      second: "::ffff:203.0.113.7",
+    },
+  ])("rate limits $pair as one client", async ({ first, second }) => {
+    const app = await buildServer(options);
+    app.get("/limited", { config: { rateLimit: { max: 1 } } }, (_, reply) =>
+      reply.send("ok"),
+    );
+
+    await app.inject({ url: "/limited", remoteAddress: first });
+    const response = await app.inject({
+      url: "/limited",
+      remoteAddress: second,
+    });
+
+    expect(response.statusCode).toBe(429);
+  });
+
+  it("rate limits two IPv6 in different /64s apart", async () => {
+    const app = await buildServer(options);
+    app.get("/limited", { config: { rateLimit: { max: 1 } } }, (_, reply) =>
+      reply.send("ok"),
+    );
+
+    await app.inject({ url: "/limited", remoteAddress: "2001:db8:0:1::1" });
+    const response = await app.inject({
+      url: "/limited",
+      remoteAddress: "2001:db8:0:2::1",
+    });
+
+    expect(response.statusCode).toBe(200);
+  });
+
   it("ignores X-Forwarded-For when no proxy is trusted", async () => {
     const app = await buildServer(options);
     app.get("/ip", (request, reply) => reply.send(request.ip));
