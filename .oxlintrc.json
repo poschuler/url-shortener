@@ -54,6 +54,5 @@
         "typescript/no-unsafe-member-access": "off"
       }
     }
-  ],
-  "ignorePatterns": ["dist/**", "coverage/**"]
+  ]
 }
