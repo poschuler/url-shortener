@@ -11,6 +11,21 @@ A URL shortener built with Node.js, TypeScript and Fastify: a modular monolith w
 - **Shorten**: turns a Target URL into a Short URL with a seven-character, case-sensitive Short Code.
 - **Resolve**: redirects a Visitor who follows a Short URL to its Target URL.
 
+## Try it
+
+With Docker running:
+
+```bash
+cp .env.example .env
+docker compose up -d --build --wait
+```
+
+1. Open `http://localhost:3001/docs`, the API reference of `write-api`, and send `POST /links` with `{"url": "https://example.com"}`. The response has the `code` and the `shortUrl`.
+2. Paste the `shortUrl` (`http://localhost:3002/<code>`) into the browser: `read-api` answers 302 and the browser lands on the Target URL. Follow it from the address bar, not from the API reference: the browser blocks a redirect to another site there.
+3. Try the errors: `http://localhost:3002/abc` is a 400 (a Short Code has seven characters), a well-formed code that no Link has is a 404, and shortening `ftp://example.com` is a 400 that names the rule.
+
+`docker compose down` stops the stack. The `.env.example` key is public, which is fine for trying it out; see [Getting started](#getting-started) before using it for anything else.
+
 ## Architecture
 
 Writes and reads run as separate processes built from the same codebase: `write-api` for Shorten and `read-api` for Resolve ([ADR-0014](docs/adr/0014-writes-and-reads-run-as-separate-processes-from-one-codebase.md)). For development, `api` runs both in one process.
