@@ -108,6 +108,19 @@ services:
       retries: 3
       start_period: 10s
 
+  # Load test of the read path, only on demand, against a stack that is
+  # already up with raised rate limits: see "Load testing" in the README.
+  # No depends_on: `run` would recreate the APIs with the default limits.
+  k6:
+    image: grafana/k6:2.3.0
+    profiles: ["load"]
+    command: ["run", "/scripts/resolve-link.ts"]
+    environment:
+      WRITE_API_URL: http://write-api:3001
+      READ_API_URL: http://read-api:3002
+    volumes:
+      - ./test/load:/scripts:ro
+
   postgres:
     image: postgres:17-alpine
     environment:

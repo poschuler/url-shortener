@@ -104,6 +104,25 @@ curl -i localhost:3000/health
 
 `docker run --env-file` keeps quotes as part of the value, so keep the values in `.env` unquoted. The container shuts down gracefully on `SIGTERM` (`docker stop`).
 
+## Load testing
+
+`test/load/resolve-link.ts` is a [k6](https://grafana.com/docs/k6/) script for the read path. It runs in the `k6` service of the compose stack, from the `grafana/k6` image, so nothing has to be installed. It first creates 1000 links, then asks `read-api` for them at a fixed rate: 500 requests per second for one minute, a tenth of them for Short Codes without a Link.
+
+The stack has to be up with raised rate limits, because every request comes from the same IP. Variables set in the shell take precedence over `.env`:
+
+```bash
+SHORTEN_RATE_LIMIT_MAX=100000 RESOLVE_RATE_LIMIT_MAX=10000000 docker compose up -d --build --wait
+docker compose run --rm k6
+docker compose run --rm -e RATE=1000 -e DURATION=30s k6   # another rate or duration
+docker compose up -d --wait                               # back to the limits in .env
+```
+
+k6 exits with an error when more than 1% of the requests fail or when the 95th and 99th percentiles go past 100 ms and 250 ms. The thresholds are loose on purpose: they catch a broken cache or a wall of 429s, not a slower machine. After a run, the metrics of `read-api` show the cache hit ratio and the time spent in Postgres:
+
+```bash
+curl -s localhost:9465/metrics | grep -E '^links_'
+```
+
 ## Continuous integration
 
 GitHub Actions runs `pnpm check`, the integration tests, and the end-to-end tests against the compose stack on every push to `main` and on every pull request (`.github/workflows/ci.yml`).
