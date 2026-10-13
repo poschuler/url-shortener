@@ -20,9 +20,25 @@ export function createRedisClient(config: RedisConfig, logger: BaseLogger) {
   });
 
   // Every failed reconnect emits "error". Without a listener, Node treats it
-  // as an uncaught exception and the process dies.
+  // as an uncaught exception and the process dies. While Redis stays down
+  // the client keeps failing, so only the first error of an outage is logged,
+  // and "ready" (connected again) closes it.
+  let failing = false;
+
   client.on("error", (error: Error) => {
-    logger.warn({ err: { message: error.message } }, "Redis client error");
+    if (failing) {
+      return;
+    }
+    failing = true;
+    logger.warn({ err: { message: error.message } }, "Redis connection failed");
+  });
+
+  client.on("ready", () => {
+    if (!failing) {
+      return;
+    }
+    failing = false;
+    logger.info("Redis connection restored");
   });
 
   return client;
