@@ -56,7 +56,7 @@ flowchart LR
 
 ## Level 3: Components of the `links` module
 
-The module is hexagonal. The use cases and the domain do no I/O and know no frameworks: they talk to the outside through ports, which are interfaces the use cases own. Adapters on the left drive the use cases, and adapters on the right implement the ports.
+The module is hexagonal ([ADR-0018](adr/0018-modules-are-hexagonal-with-an-application-layer.md)). The use cases and the domain do no I/O and know no frameworks: they talk to the outside through ports, which are interfaces the use cases own. Adapters on the left drive the use cases, and adapters on the right implement the ports. The domain takes only a few tactical patterns from DDD ([ADR-0020](adr/0020-ddd-only-at-the-tactical-level-kept-small.md)).
 
 ```mermaid
 flowchart LR
@@ -135,7 +135,7 @@ dependency-cruiser checks these rules in `pnpm check`, along with two more: a mo
 
 ### Metrics decorators
 
-Each port that reaches Redis or Postgres is wrapped in an `Instrumented*` decorator. It implements the same interface, delegates to the real adapter and records the result: cache reads by result, and the time of each query by operation and outcome. The use cases and the adapters do not know about metrics. `index.ts` puts each decorator around its adapter.
+Each port that reaches Redis or Postgres is wrapped in an `Instrumented*` decorator. It implements the same interface, delegates to the real adapter and records the result: cache reads by result, and the time of each query by operation and outcome. The use cases and the adapters do not know about metrics. `index.ts` puts each decorator around its adapter ([ADR-0021](adr/0021-prometheus-metrics-on-a-port-of-their-own-recorded-by-decorators.md)).
 
 ### Composition
 

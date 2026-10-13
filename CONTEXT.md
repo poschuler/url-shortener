@@ -11,6 +11,7 @@ _Avoid_: short link, shortened URL, alias
 **Short Code**:
 The seven-character, case-sensitive base62 identifier of a Link, unique across all Links and never reassigned.
 _Avoid_: code, slug, token, ID
+In the API and the database, the field that holds a Short Code is named `code`: the word is avoided in prose, not as a field name (ADR-0020).
 
 **Target URL**:
 The http or https URL a Link redirects to, kept in canonical form. It never carries user credentials, its hostname is never the hostname of the service's public base URL, and its canonical form is never longer than the configured maximum length.

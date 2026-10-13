@@ -42,14 +42,14 @@ flowchart LR
 - **Shorten** validates the Target URL, takes a number that `write-api` reserved from a Postgres sequence a range at a time ([ADR-0010](docs/adr/0010-short-code-numbers-are-handed-out-in-ranges.md)), turns it into a Short Code with a keyed Feistel permutation ([ADR-0004](docs/adr/0004-keyed-feistel-permutation-for-short-codes.md)) and saves the Link.
 - **Resolve** reads the Target URL from Redis, falls back to Postgres on a miss, and caches Short Codes without a Link too ([ADR-0017](docs/adr/0017-resolve-reads-through-a-redis-cache-with-negative-entries.md)). It redirects with 302 ([ADR-0016](docs/adr/0016-resolve-redirects-with-302.md)).
 
-Inside, each module is hexagonal: its use cases and domain do no I/O and reach Postgres and Redis through ports, and dependency-cruiser enforces the layers ([ADR-0009](docs/adr/0009-dependency-boundaries-are-enforced-with-dependency-cruiser.md)). [`docs/architecture.md`](docs/architecture.md) has the three levels of the C4 model, down to the components of the `links` module, and both paths step by step.
+Inside, each module is hexagonal ([ADR-0018](docs/adr/0018-modules-are-hexagonal-with-an-application-layer.md)): its use cases and domain do no I/O and reach Postgres and Redis through ports, and dependency-cruiser enforces the layers ([ADR-0009](docs/adr/0009-dependency-boundaries-are-enforced-with-dependency-cruiser.md)). [`docs/architecture.md`](docs/architecture.md) has the three levels of the C4 model, down to the components of the `links` module, and both paths step by step.
 
 ## Documentation
 
 - [`docs/architecture.md`](docs/architecture.md): context, containers and components, with diagrams.
 - [`CONTEXT.md`](CONTEXT.md): the domain language (Link, Short Code, Target URL, Short URL, Visitor).
 - [`docs/adr/`](docs/adr/): architecture decision records, numbered in the order they were made.
-- [`docs/openapi.json`](docs/openapi.json): the OpenAPI 3.1 document of the API, generated from the routes. With `DOCS_ENABLED=true`, each API also serves it at `/docs/openapi.json`, with a [Scalar](https://scalar.com) reference at `/docs`.
+- [`docs/openapi.json`](docs/openapi.json): the OpenAPI 3.1 document of the API, generated from the routes ([ADR-0019](docs/adr/0019-the-openapi-document-is-generated-from-the-route-schemas.md)). With `DOCS_ENABLED=true`, each API also serves it at `/docs/openapi.json`, with a [Scalar](https://scalar.com) reference at `/docs`.
 
 ## Requirements
 
@@ -176,7 +176,7 @@ curl -i localhost:3000/health
 
 ## Metrics
 
-Each API serves Prometheus metrics at `/metrics` on a port of its own, `METRICS_PORT` (9464 by default), never on its public port. The stack publishes them on `127.0.0.1` only: `write-api` on port 9464 and `read-api` on port 9465.
+Each API serves Prometheus metrics at `/metrics` on a port of its own, `METRICS_PORT` (9464 by default), never on its public port ([ADR-0021](docs/adr/0021-prometheus-metrics-on-a-port-of-their-own-recorded-by-decorators.md)). The stack publishes them on `127.0.0.1` only: `write-api` on port 9464 and `read-api` on port 9465.
 
 ```bash
 curl -s localhost:9464/metrics | grep http_request_duration_seconds_count
