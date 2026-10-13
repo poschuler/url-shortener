@@ -3,12 +3,14 @@ import { randomUUID } from "node:crypto";
 import rateLimit from "@fastify/rate-limit";
 import swagger from "@fastify/swagger";
 import { TypeBoxValidatorCompiler } from "@fastify/type-provider-typebox";
+import type { Registry } from "@prometheus-io/client";
 import scalar from "@scalar/fastify-api-reference";
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from "fastify";
 import type { Logger } from "pino";
 
 import { withTimeout } from "../async/with-timeout.js";
 import { registerProblemDetails, sendProblem } from "./problem-details.js";
+import { registerRequestMetrics } from "./request-metrics.js";
 
 // Below the 3s timeout of the compose healthcheck, so /ready always answers.
 const READINESS_TIMEOUT_MS = 2_000;
@@ -24,6 +26,8 @@ export type ServerOptions = {
   trustProxy?: string[];
   // Serves the API reference (Scalar) and the OpenAPI document under /docs.
   docsEnabled?: boolean;
+  // Records how long each request takes. Served by the metrics server.
+  metricsRegistry?: Registry;
   readinessChecks?: Record<string, ReadinessCheck>;
   readinessTimeoutMs?: number;
 };
@@ -35,6 +39,7 @@ export async function buildServer({
   rateLimitWindowMs,
   trustProxy = [],
   docsEnabled = false,
+  metricsRegistry,
   readinessChecks = {},
   readinessTimeoutMs = READINESS_TIMEOUT_MS,
 }: ServerOptions): Promise<FastifyInstance> {
@@ -53,6 +58,11 @@ export async function buildServer({
   // { "url": 42 } would become "42" and { "url": ["..."] } a plain string.
   app.setValidatorCompiler(TypeBoxValidatorCompiler);
   registerProblemDetails(app);
+
+  // A hook on the root: it times every request, 404s and 429s included.
+  if (metricsRegistry !== undefined) {
+    registerRequestMetrics(app, metricsRegistry);
+  }
 
   // In memory, per process: with N replicas a client gets N times the limit.
   // Off by default; a route opts in with config: { rateLimit: { max } }.

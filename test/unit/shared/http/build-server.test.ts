@@ -1,3 +1,4 @@
+import { Registry } from "@prometheus-io/client";
 import { pino } from "pino";
 import { describe, expect, it } from "vitest";
 
@@ -173,5 +174,23 @@ describe("buildServer", () => {
     });
     expect(response.json()).not.toHaveProperty(["paths", "/health"]);
     expect(response.json()).not.toHaveProperty(["paths", "/ready"]);
+  });
+
+  it("records each request by route pattern and status code", async () => {
+    const metricsRegistry = new Registry();
+    const app = await buildServer({ ...options, metricsRegistry });
+    app.get("/items/:id", async () => "ok");
+
+    await app.inject({ url: "/items/1" });
+    await app.inject({ url: "/items/2" });
+    await app.inject({ url: "/nope" });
+
+    const metrics = await metricsRegistry.metrics();
+    expect(metrics).toContain(
+      'http_request_duration_seconds_count{method="GET",route="/items/:id",status_code="200"} 2',
+    );
+    expect(metrics).toContain(
+      'http_request_duration_seconds_count{method="GET",route="unmatched",status_code="404"} 1',
+    );
   });
 });
