@@ -104,7 +104,7 @@ pnpm db:migrate
 pnpm dev   # api on port 3000
 ```
 
-The Short URLs that `api` returns point to `PUBLIC_BASE_URL`, which `.env.example` sets to `read-api`. To follow them with `pnpm dev`, set `PUBLIC_BASE_URL=http://localhost:3000`.
+The Short URLs that `api` returns point to `PUBLIC_BASE_URL`, which `.env.example` sets to `read-api`. To follow them with `pnpm dev`, set `PUBLIC_BASE_URL=http://localhost:3000`. With `pnpm dev`, the API reference at `http://localhost:3000/docs` has both routes.
 
 ## API
 
