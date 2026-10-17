@@ -34,7 +34,8 @@
     "start": "node --env-file-if-exists=.env --enable-source-maps dist/entrypoints/api.js",
     "db:migrate": "tsx --env-file-if-exists=.env src/entrypoints/migrate.ts",
     "db:migrate:down": "tsx --env-file-if-exists=.env src/entrypoints/migrate.ts down",
-    "openapi": "tsx src/entrypoints/openapi.ts"
+    "openapi": "tsx src/entrypoints/openapi.ts",
+    "diagrams": "bash ./scripts/export-diagrams.sh"
   },
   "dependencies": {
     "@fastify/rate-limit": "^11.2.1",
@@ -50,6 +51,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@mermaid-js/mermaid-cli": "^12.0.0",
     "@swc/core": "^1.16.13",
     "@testcontainers/postgresql": "^12.2.0",
     "@testcontainers/redis": "^12.2.0",

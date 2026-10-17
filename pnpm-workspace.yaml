@@ -3,4 +3,5 @@ allowBuilds:
   cpu-features: false
   esbuild: false
   protobufjs: false
+  puppeteer: true
   ssh2: false
